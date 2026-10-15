@@ -1,0 +1,40 @@
+info:
+  name: Login
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: https://api.pdga.com/services/json/user/login
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "username": "{{username}}",
+        "password": "{{password}}"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const jar = bru.cookies.jar();
+        jar.deleteCookies("https://api.pdga.com");
+    - type: after-response
+      code: |-
+        if (res.status == 200) {
+          bru.setVar("pdga_token", res.body.token);
+          bru.setVar("pdga_session_name", res.body.session_name);
+          bru.setVar("pdga_sessid", res.body.sessid);
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

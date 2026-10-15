@@ -1,0 +1,65 @@
+info:
+  name: Player Statistics
+  type: http
+  seq: 5
+
+http:
+  method: GET
+  url: https://api.pdga.com/services/json/player-statistics
+  headers:
+    - name: Cookie
+      value: "{{pdga_session_name}}={{pdga_sessid}}"
+  params:
+    - name: year
+      value: "2026"
+      type: query
+      disabled: true
+    - name: class
+      value: A
+      type: query
+      disabled: true
+    - name: division_code
+      value: MA2
+      type: query
+      disabled: true
+    - name: continent
+      value: NA
+      type: query
+      disabled: true
+    - name: country
+      value: US
+      type: query
+      disabled: true
+    - name: state_prov
+      value: AL
+      type: query
+      disabled: true
+    - name: gender
+      value: M
+      type: query
+      disabled: true
+    - name: pdga_number
+      value: "284360"
+      type: query
+      disabled: true
+    - name: last_modified
+      value: 2026-01-01
+      type: query
+      disabled: true
+    - name: limit
+      value: "100"
+      type: query
+      description: default 10, max 200
+      disabled: true
+    - name: offset
+      value: "0"
+      type: query
+      disabled: true
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

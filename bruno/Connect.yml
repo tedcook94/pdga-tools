@@ -1,0 +1,21 @@
+info:
+  name: Connect
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: https://api.pdga.com/services/json/system/connect
+  headers:
+    - name: X-CSRF-Token
+      value: "{{pdga_token}}"
+    - name: Cookie
+      value: "{{pdga_session_name}}={{pdga_sessid}}"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

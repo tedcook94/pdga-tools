@@ -1,0 +1,6 @@
+name: Ted Cook
+variables:
+  - name: username
+    value: Ted Cook 284360
+  - secret: true
+    name: password

@@ -1,0 +1,33 @@
+info:
+  name: Logout
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: https://api.pdga.com/services/json/user/logout
+  headers:
+    - name: X-CSRF-Token
+      value: "{{pdga_token}}"
+    - name: Cookie
+      value: "{{pdga_session_name}}={{pdga_sessid}}"
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status == 200) {
+          const jar = bru.cookies.jar();
+          jar.deleteCookies("https://api.pdga.com");
+          bru.deleteVar("pdga_token");
+          bru.deleteVar("pdga_session_name");
+          bru.deleteVar("pdga_sessid");
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
