@@ -67,3 +67,14 @@ func TestSummarizePublished(t *testing.T) {
 		})
 	}
 }
+
+func TestSummarizeExcludesZero(t *testing.T) {
+	players := map[string]Player{
+		"1": player("1", new("0"), new("2026-10-13")),
+		"2": player("2", new("7"), new("2026-10-13")),
+	}
+	got := summarize(players, date("2026-10-13"))
+	if got.Zero != 1 || got.Total != 1 || got.Ratings[7] != 1 || got.Ratings[0] != 0 {
+		t.Errorf("summary = %+v", got)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -220,5 +221,23 @@ func TestCanceledContextStops(t *testing.T) {
 	cancel()
 	if err := c.Login(ctx, "u", "p"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+}
+
+func TestProgressCallback(t *testing.T) {
+	f := &fakePDGA{total: 450}
+	c := newTestClient(t, f)
+	var calls [][2]int
+	c.Progress = func(pages, players int) { calls = append(calls, [2]int{pages, players}) }
+	ctx := context.Background()
+	if err := c.Login(ctx, "u", "p"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.FetchPlayers(ctx, 0); err != nil {
+		t.Fatal(err)
+	}
+	want := [][2]int{{1, 200}, {2, 400}, {3, 450}}
+	if !slices.Equal(calls, want) {
+		t.Errorf("calls = %v, want %v", calls, want)
 	}
 }

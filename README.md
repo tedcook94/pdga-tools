@@ -111,6 +111,7 @@ repository activity. The monthly data commit should prevent that, and
 
     {
       "generated_at": "2026-12-09",
+      "ratings_update": "2026-12-08",
       "active_window_months": 12,
       "total_players": 123456,
       "ratings": { "750": 312, "751": 298 }
@@ -135,6 +136,9 @@ rating) / total players.
 - One row per player, ordered by `pdga_number`.
 - Default page size is 10; the maximum is 200.
 - `status: 1` is returned when the offset is past the end.
+- Some active players have a `rating` of exactly `"0"` (79 in October 2026;
+  the next lowest was 7). These are treated as placeholders: excluded from
+  the counts and logged separately.
 - Expired members have `rating: null`, but their `rating_effective_date` can
   still change.
 - `rating_effective_date` is when the rating last changed, not the latest
@@ -163,6 +167,29 @@ Secrets for the Action: `PDGA_USERNAME`, `PDGA_PASSWORD`, `HC_DAILY_URL`,
 `HC_MONTHLY_URL`.
 Local runs read the same names from environment variables or `.env`
 (ignored by git).
+
+## Running locally
+
+From the repo root, with `PDGA_USERNAME` and `PDGA_PASSWORD` in `.env`:
+
+    go -C fetcher run . -data ../data -env ../.env
+
+A full pull takes about 25 minutes and logs progress about once a minute.
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `-data` | `data` | Output directory, relative to the working directory |
+| `-env` | `.env` | Credentials file; existing environment variables win |
+| `-delay` | `1s` | Minimum time between API requests |
+| `-progress` | `50` | Log progress every N pages (`0` = off) |
+| `-dry-run` | `false` | Fetch and summarize without writing files |
+| `-max-pages` | `0` | Stop after N pages (`0` = all); implies `-dry-run` |
+
+Quick check that credentials and the API work (3 requests, writes nothing):
+
+    go -C fetcher run . -data ../data -env ../.env -max-pages 3
+
+Run tests with `go -C fetcher test ./...`.
 
 ## License compliance
 

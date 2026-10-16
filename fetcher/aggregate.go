@@ -15,6 +15,7 @@ type Summary struct {
 	Ratings   map[int]int
 	Total     int
 	Published bool
+	Zero      int
 	Malformed int
 }
 
@@ -42,6 +43,11 @@ func summarize(players map[string]Player, update time.Time) Summary {
 		rating, err := strconv.Atoi(*p.Rating)
 		if err != nil {
 			s.Malformed++
+			continue
+		}
+		// The API reports 0 for some players; it isn't a real rating.
+		if rating == 0 {
+			s.Zero++
 			continue
 		}
 		s.Ratings[rating]++

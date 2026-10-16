@@ -25,6 +25,7 @@ type Client struct {
 	HTTP         *http.Client
 	Delay        time.Duration
 	RetryBackoff time.Duration
+	Progress     func(pages, players int)
 
 	sessionName string
 	sessid      string
@@ -100,6 +101,9 @@ func (c *Client) FetchPlayers(ctx context.Context, maxPages int) (map[string]Pla
 		}
 		for _, p := range resp.Players {
 			players[p.PDGANumber] = p
+		}
+		if c.Progress != nil {
+			c.Progress(page+1, len(players))
 		}
 	}
 	return players, nil
