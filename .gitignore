@@ -1,0 +1,4 @@
+.env*
+
+# Kept out of git until PDGA approves bulk data use.
+data/
