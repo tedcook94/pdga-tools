@@ -23,8 +23,9 @@ approval is received. If approval is denied, the project ends.
    No names or PDGA numbers are written to disk or published.
 5. Each month's aggregates are saved as a new file in `data/`, building a
    history for trend views.
-6. A static SvelteKit site on GitHub Pages loads the JSON, and the user's
-   browser computes their percentile from the rating they enter.
+6. `data/` is copied into the static SvelteKit build on GitHub Pages. The
+   site loads the JSON, and the user's browser computes their percentile
+   from the rating they enter.
 
 ### Active players
 
@@ -90,8 +91,22 @@ repository activity. The monthly data commit should prevent that, and
 | Fetcher    | Go (standard library)                           |
 | Schedule   | GitHub Actions (daily cron + manual dispatch)   |
 | Monitoring | Healthchecks.io                                 |
-| Frontend   | SvelteKit + `adapter-static`                    |
+| Frontend   | SvelteKit + `adapter-static`, TypeScript        |
+| Styling    | Component-scoped CSS + Open Props               |
+| Tests      | Go `testing` (fetcher), Vitest (frontend)       |
+| Packages   | pnpm                                            |
 | Hosting    | GitHub Pages                                    |
+
+## Frontend
+
+- One page: a rating input (whole number, 0–1100) and the percentile, which
+  updates as you type. Empty or out-of-range input shows a hint instead.
+- Shows which ratings update the data is from.
+- Styles live in each component's `<style>` block, built on
+  [Open Props](https://open-props.style) variables. Dark mode follows the
+  system setting.
+- Every page shows the attribution line and links to pdga.com and PDGA's
+  Player Statistics page.
 
 ## Layout
 
