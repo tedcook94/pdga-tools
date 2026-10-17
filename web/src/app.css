@@ -1,0 +1,54 @@
+@import 'open-props/style';
+@import 'open-props/normalize';
+
+:root {
+	--accent: var(--indigo-7);
+	--accent-2: var(--violet-7);
+	--page-bg:
+		radial-gradient(ellipse at top, color-mix(in oklab, var(--indigo-3) 45%, transparent), transparent 65%),
+		linear-gradient(135deg, var(--indigo-0), color-mix(in oklab, var(--violet-1) 70%, var(--indigo-0)));
+	--card-bg: color-mix(in oklab, white 70%, transparent);
+	--card-border: color-mix(in oklab, var(--indigo-3) 50%, transparent);
+	--card-shadow: 0 var(--size-3) var(--size-8) color-mix(in oklab, var(--indigo-7) 15%, transparent);
+	--field-bg: color-mix(in oklab, white 80%, transparent);
+	--field-border: var(--indigo-2);
+	--track: color-mix(in oklab, var(--indigo-2) 70%, transparent);
+}
+
+@media (prefers-color-scheme: light) {
+	:root {
+		--text-1: var(--indigo-12);
+		--text-2: color-mix(in oklab, var(--indigo-9) 70%, var(--gray-7));
+	}
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--accent: var(--indigo-3);
+		--accent-2: var(--violet-3);
+		--page-bg:
+			radial-gradient(ellipse at top, color-mix(in oklab, var(--accent) 22%, transparent), transparent 60%),
+			radial-gradient(ellipse at bottom right, color-mix(in oklab, var(--accent-2) 14%, transparent), transparent 55%),
+			var(--surface-1);
+		--card-bg: color-mix(in oklab, var(--surface-2) 75%, transparent);
+		--card-border: color-mix(in oklab, var(--surface-4) 60%, transparent);
+		--card-shadow: var(--shadow-4);
+		--field-bg: var(--surface-1);
+		--field-border: var(--surface-4);
+		--track: var(--surface-3);
+	}
+}
+
+body {
+	min-block-size: 100dvh;
+	display: grid;
+	grid-template-rows: 1fr auto;
+	background: var(--page-bg);
+	background-attachment: fixed;
+}
+
+h1,
+h2,
+p {
+	text-wrap: balance;
+}

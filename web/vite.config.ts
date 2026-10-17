@@ -13,6 +13,10 @@ export default defineConfig({
 			adapter: adapter()
 		})
 	],
+	server: {
+		// The fetcher writes data/ at the repo root, outside this package.
+		fs: { allow: ['../data'] }
+	},
 	test: {
 		expect: { requireAssertions: true },
 		projects: [

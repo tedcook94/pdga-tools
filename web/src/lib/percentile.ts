@@ -13,6 +13,7 @@ export interface Result {
 	percentile: number;
 	below: number;
 	equal: number;
+	above: number;
 	total: number;
 }
 
@@ -34,5 +35,18 @@ export function percentile(ratings: Record<string, number>, rating: number): Res
 	}
 	if (total === 0) return null;
 
-	return { percentile: ((below + equal / 2) / total) * 100, below, equal, total };
+	return {
+		percentile: ((below + equal / 2) / total) * 100,
+		below,
+		equal,
+		above: total - below - equal,
+		total
+	};
+}
+
+export function ordinal(n: number): string {
+	const whole = Math.floor(n);
+	const lastTwo = whole % 100;
+	if (lastTwo >= 11 && lastTwo <= 13) return 'th';
+	return ['th', 'st', 'nd', 'rd'][whole % 10] ?? 'th';
 }

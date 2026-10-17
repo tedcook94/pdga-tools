@@ -105,8 +105,7 @@ repository activity. The monthly data commit should prevent that, and
 - Styles live in each component's `<style>` block, built on
   [Open Props](https://open-props.style) variables. Dark mode follows the
   system setting.
-- Every page shows the attribution line and links to pdga.com and PDGA's
-  Player Statistics page.
+- Every page shows the attribution line with a link to pdga.com.
 
 ## Layout
 
@@ -209,7 +208,6 @@ Run tests with `go -C fetcher test ./...`.
 ## License compliance
 
 - Show the attribution line and a link to pdga.com on every page.
-- Point users to PDGA's official Player Statistics page.
 - Publish aggregate counts only. No names or PDGA numbers.
 - Throttle requests. Normally one full pull a month, with at most one
   retry per day until the update is published.

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { isValidRating, percentile } from './percentile';
+import { isValidRating, ordinal, percentile } from './percentile';
 
 const ratings = { '800': 2, '900': 4, '1000': 2, '850': 2 };
 
 describe('percentile', () => {
 	it('counts half of tied players as below', () => {
-		expect(percentile(ratings, 900)).toEqual({ percentile: 60, below: 4, equal: 4, total: 10 });
+		expect(percentile(ratings, 900)).toEqual({ percentile: 60, below: 4, equal: 4, above: 2, total: 10 });
 	});
 
 	it('handles ratings between known values', () => {
@@ -34,5 +34,13 @@ describe('isValidRating', () => {
 	it('accepts whole numbers from 0 to 1100', () => {
 		expect([0, 908, 1100].every(isValidRating)).toBe(true);
 		expect([-1, 1101, 9.5, NaN, Infinity].some(isValidRating)).toBe(false);
+	});
+});
+
+describe('ordinal', () => {
+	it('uses the suffix of the whole part', () => {
+		expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 68.6, 99.9, 100, 0.4].map(ordinal)).toEqual([
+			'st', 'nd', 'rd', 'th', 'th', 'th', 'th', 'st', 'nd', 'th', 'th', 'th', 'th'
+		]);
 	});
 });
