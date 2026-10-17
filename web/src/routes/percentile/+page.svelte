@@ -5,7 +5,45 @@
 
 	let { data }: PageProps = $props();
 
+	const TYPING_DELAY_MS = 300;
+
+	// The box and the rating are separate so partial input ("9" on the way to
+	// "908") doesn't move the marker; the rating catches up once typing pauses.
+	let typed = $state<number | null>(null);
 	let rating = $state<number | null>(null);
+	let timer: ReturnType<typeof setTimeout> | undefined;
+
+	function applyTyped() {
+		clearTimeout(timer);
+		rating = typed;
+	}
+
+	// Browsers disagree on how spinner clicks report inputType, so text edits
+	// are detected from the key or paste that caused them instead. Spinner
+	// clicks and arrow-key steps have no such event and apply immediately.
+	let textEdit = false;
+
+	function onKeyDown(event: KeyboardEvent) {
+		if (event.key === 'Enter') applyTyped();
+		// "Unidentified" covers mobile soft keyboards.
+		textEdit =
+			event.key.length === 1 || ['Backspace', 'Delete', 'Unidentified'].includes(event.key);
+	}
+
+	function onInput() {
+		clearTimeout(timer);
+		if (typed == null || !textEdit) applyTyped();
+		else timer = setTimeout(applyTyped, TYPING_DELAY_MS);
+		textEdit = false;
+	}
+
+	function setFromCurve(value: number | null) {
+		clearTimeout(timer);
+		rating = value;
+		typed = value;
+	}
+
+	$effect(() => () => clearTimeout(timer));
 
 	const result = $derived(rating == null ? null : percentile(data.month.ratings, rating));
 
@@ -47,7 +85,11 @@
 			max={MAX_RATING}
 			step="1"
 			placeholder="900"
-			bind:value={rating}
+			bind:value={typed}
+			oninput={onInput}
+			onblur={applyTyped}
+			onkeydown={onKeyDown}
+			onpaste={() => (textEdit = true)}
 		/>
 	</label>
 
@@ -63,7 +105,7 @@
 			{/if}
 		</div>
 
-		<DistributionCurve ratings={data.month.ratings} bind:rating valid={result != null} />
+		<DistributionCurve ratings={data.month.ratings} bind:rating={() => rating, setFromCurve} valid={result != null} />
 
 		{#if result}
 			<dl class="stats">
