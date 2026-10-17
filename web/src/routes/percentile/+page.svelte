@@ -1,4 +1,5 @@
 <script lang="ts">
+	import DistributionCurve from '#lib/DistributionCurve.svelte';
 	import { MAX_RATING, MIN_RATING, isValidRating, ordinal, percentile } from '#lib/percentile.ts';
 	import type { PageProps } from './$types';
 
@@ -9,7 +10,7 @@
 	const result = $derived(rating == null ? null : percentile(data.month.ratings, rating));
 
 	const hint = $derived.by(() => {
-		if (rating == null) return `Enter a rating from ${MIN_RATING} to ${MAX_RATING}.`;
+		if (rating == null) return `Enter a rating from ${MIN_RATING} to ${MAX_RATING}, or drag the curve.`;
 		if (!Number.isInteger(rating)) return 'Ratings are whole numbers.';
 		if (!isValidRating(rating)) return `Ratings range from ${MIN_RATING} to ${MAX_RATING}.`;
 		return '';
@@ -50,18 +51,21 @@
 		/>
 	</label>
 
-	<section class="card" aria-live="polite">
+	<section class="card">
+		<div class="readout" aria-live="polite">
+			{#if result}
+				<p class="percentile">
+					{result.percentile.toFixed(1)}<span class="suffix">{ordinal(result.percentile)}</span>
+				</p>
+				<p class="label">percentile</p>
+			{:else}
+				<p class="hint">{hint}</p>
+			{/if}
+		</div>
+
+		<DistributionCurve ratings={data.month.ratings} bind:rating valid={result != null} />
+
 		{#if result}
-			<p class="percentile">
-				{result.percentile.toFixed(1)}<span class="suffix">{ordinal(result.percentile)}</span>
-			</p>
-			<p class="label">percentile</p>
-
-			<div class="bar" aria-hidden="true">
-				<div class="fill" style:inline-size="{result.percentile}%"></div>
-				<div class="marker" style:inset-inline-start="{result.percentile}%"></div>
-			</div>
-
 			<dl class="stats">
 				<div>
 					<dt>Below</dt>
@@ -76,8 +80,6 @@
 					<dd>{count(result.above)}</dd>
 				</div>
 			</dl>
-		{:else}
-			<p class="hint">{hint}</p>
 		{/if}
 	</section>
 
@@ -165,7 +167,14 @@
 	}
 
 	.card {
-		min-block-size: 15rem;
+		gap: var(--size-4);
+	}
+
+	/* Fixed height so the curve doesn't jump when the hint swaps for a result. */
+	.readout {
+		min-block-size: 6rem;
+		display: grid;
+		gap: var(--size-2);
 		align-content: center;
 	}
 
@@ -185,35 +194,7 @@
 	}
 
 	.label {
-		margin-block-start: calc(var(--size-2) * -1);
 		color: var(--text-2);
-	}
-
-	.bar {
-		position: relative;
-		block-size: var(--size-2);
-		margin-block: var(--size-3);
-		border-radius: var(--radius-round);
-		background: var(--track);
-	}
-
-	.fill {
-		block-size: 100%;
-		border-radius: inherit;
-		background: linear-gradient(90deg, var(--accent), var(--accent-2));
-		transition: inline-size 0.4s var(--ease-out-3);
-	}
-
-	.marker {
-		position: absolute;
-		inset-block-start: 50%;
-		inline-size: var(--size-4);
-		block-size: var(--size-4);
-		translate: -50% -50%;
-		border: var(--border-size-3) solid var(--accent-2);
-		border-radius: var(--radius-round);
-		background: var(--surface-1);
-		transition: inset-inline-start 0.4s var(--ease-out-3);
 	}
 
 	.stats {

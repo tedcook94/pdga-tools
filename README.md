@@ -114,6 +114,10 @@ home (in `+layout.svelte`). Links use
 
 - A rating input (whole number, 0–1100) and the percentile, which
   updates as you type. Empty or out-of-range input shows a hint instead.
+- A distribution curve of active ratings (plain SVG, lightly smoothed), with
+  the area left of your rating shaded and a draggable marker. Dragging,
+  tapping, or arrow keys set the rating and update the input. The curve
+  shows before any rating is entered.
 - Shows which ratings update the data is from.
 - Styles live in each component's `<style>` block, built on
   [Open Props](https://open-props.style) variables. Shared pieces (theme
@@ -255,10 +259,6 @@ Requires Node 22+ and pnpm.
 - **Trends over time:** how the percentile for a given rating changes
   (e.g. 900 was the 60th percentile in 2020 and the 70th now). Past years
   can be backfilled from `/player-statistics?year=...`.
-- **Distribution curve:** next after deploy. Plain SVG under the result card
-  on `/percentile`: a lightly smoothed curve of the monthly rating counts, the
-  area left of your rating shaded with the accent gradient, and a marker line
-  at your rating. Expect a skewed shape, not a true bell curve.
 - **Visualizations:** rating histogram with your position marked.
 - **Profile lookup and tournament search:** these need live API calls, so
   they go through a Cloudflare Worker. The Worker is a separate on-demand
