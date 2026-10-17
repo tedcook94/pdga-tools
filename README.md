@@ -1,15 +1,15 @@
-# PDGA Rating Percentile
+# PDGA Tools
 
-Find out what percentile your PDGA player rating falls in compared to
-active rated players.
+Small tools built on PDGA player data, deployed to GitHub Pages at
+<https://tedcook94.github.io/pdga-tools/>. The first tool finds what percentile
+your PDGA player rating falls in compared to active rated players.
 
 > Player, event, and course data provided by [PDGA](https://www.pdga.com).
 
 ## Status
 
-V1 in development. Bulk data use is pending written approval from the
-PDGA under the API License Agreement. The repo stays local only until
-approval is received. If approval is denied, the project ends.
+V1 in development. The PDGA approved bulk data use under the API License
+Agreement.
 
 ## How it works
 
@@ -99,11 +99,25 @@ repository activity. The monthly data commit should prevent that, and
 
 ## Frontend
 
-- One page: a rating input (whole number, 0–1100) and the percentile, which
+### Routes
+
+| Route | Page |
+|-------|------|
+| `/` | Home: list of tools |
+| `/percentile` | Rating percentile |
+
+Every page has a sticky header bar with a "PDGA Tools" wordmark that links
+home (in `+layout.svelte`). Links use
+`resolve()` from `$app/paths` so they work under the `/pdga-tools` base path.
+
+### Percentile page
+
+- A rating input (whole number, 0–1100) and the percentile, which
   updates as you type. Empty or out-of-range input shows a hint instead.
 - Shows which ratings update the data is from.
 - Styles live in each component's `<style>` block, built on
-  [Open Props](https://open-props.style) variables. Dark mode follows the
+  [Open Props](https://open-props.style) variables. Shared pieces (theme
+  variables, the `.card` class) live in `web/src/app.css`. Dark mode follows the
   system setting.
 - Every page shows the attribution line with a link to pdga.com.
 
@@ -205,6 +219,22 @@ Quick check that credentials and the API work (3 requests, writes nothing):
 
 Run tests with `go -C fetcher test ./...`.
 
+### Web
+
+The site reads `data/` at build time (`web/src/lib/data.ts`), so rebuild
+after each fetch to pick up a new month.
+
+    pnpm -C web dev      # dev server
+    pnpm -C web test     # Vitest
+    pnpm -C web check    # svelte-check
+    pnpm -C web build    # static build in web/build
+
+Set `BASE_PATH` for a build served under a subpath, as on GitHub Pages:
+
+    BASE_PATH=/pdga-tools pnpm -C web build
+
+Requires Node 22+ and pnpm.
+
 ## License compliance
 
 - Show the attribution line and a link to pdga.com on every page.
@@ -225,6 +255,10 @@ Run tests with `go -C fetcher test ./...`.
 - **Trends over time:** how the percentile for a given rating changes
   (e.g. 900 was the 60th percentile in 2020 and the 70th now). Past years
   can be backfilled from `/player-statistics?year=...`.
+- **Distribution curve:** next after deploy. Plain SVG under the result card
+  on `/percentile`: a lightly smoothed curve of the monthly rating counts, the
+  area left of your rating shaded with the accent gradient, and a marker line
+  at your rating. Expect a skewed shape, not a true bell curve.
 - **Visualizations:** rating histogram with your position marked.
 - **Profile lookup and tournament search:** these need live API calls, so
   they go through a Cloudflare Worker. The Worker is a separate on-demand

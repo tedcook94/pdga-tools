@@ -42,7 +42,7 @@
 body {
 	min-block-size: 100dvh;
 	display: grid;
-	grid-template-rows: 1fr auto;
+	grid-template-rows: auto 1fr auto;
 	background: var(--page-bg);
 	background-attachment: fixed;
 }
@@ -51,4 +51,15 @@ h1,
 h2,
 p {
 	text-wrap: balance;
+}
+
+.card {
+	padding: var(--size-6);
+	display: grid;
+	gap: var(--size-3);
+	border: var(--border-size-1) solid var(--card-border);
+	border-radius: var(--radius-4);
+	background: var(--card-bg);
+	backdrop-filter: blur(12px);
+	box-shadow: var(--card-shadow);
 }
