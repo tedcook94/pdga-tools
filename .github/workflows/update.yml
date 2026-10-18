@@ -1,0 +1,132 @@
+name: update
+
+on:
+  schedule:
+    - cron: '0 17 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+# One run at a time, and never cancel a run mid-deploy or mid-commit.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  fetch:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    outputs:
+      updated: ${{ steps.fetch.outputs.updated }}
+      sha: ${{ steps.fetch.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: fetcher/go.mod
+          cache: false
+
+      - id: fetch
+        env:
+          PDGA_USERNAME: ${{ secrets.PDGA_USERNAME }}
+          PDGA_PASSWORD: ${{ secrets.PDGA_PASSWORD }}
+          HC_DAILY_URL: ${{ secrets.HC_DAILY_URL }}
+          HC_MONTHLY_URL: ${{ secrets.HC_MONTHLY_URL }}
+        run: |
+          # A Healthchecks outage shouldn't fail the run.
+          ping() { curl -fsS -m 10 --retry 3 -o /dev/null "$1" || true; }
+
+          ping "$HC_DAILY_URL/start"
+
+          # Build, then run the binary: `go run` reports any non-zero exit as 1,
+          # which would hide the skip code 3.
+          if ! go -C fetcher build -o "$RUNNER_TEMP/fetcher" .; then
+            ping "$HC_DAILY_URL/fail"
+            exit 1
+          fi
+
+          set +e
+          "$RUNNER_TEMP/fetcher" -data data -env /dev/null
+          code=$?
+          set -e
+
+          case $code in
+            0)
+              git config user.name 'github-actions[bot]'
+              git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+              git add data
+              git commit -m "add ratings data for $(jq -r .latest data/index.json)"
+              git push
+              echo "updated=true" >> "$GITHUB_OUTPUT"
+              echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+              ping "$HC_DAILY_URL"
+              ping "$HC_MONTHLY_URL"
+              ;;
+            3)
+              echo "updated=false" >> "$GITHUB_OUTPUT"
+              ping "$HC_DAILY_URL"
+              ;;
+            *)
+              ping "$HC_DAILY_URL/fail"
+              exit "$code"
+              ;;
+          esac
+
+  build:
+    needs: fetch
+    # Runs after a skipped fetch (push), but on the schedule only when new data was written.
+    if: >-
+      always() &&
+      (needs.fetch.result == 'success' || needs.fetch.result == 'skipped') &&
+      (github.event_name != 'schedule' || needs.fetch.outputs.updated == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      # The data commit pushed by fetch isn't in github.sha, so check it out explicitly.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.fetch.outputs.sha || github.sha }}
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: web/package.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - run: pnpm -C web install --frozen-lockfile
+      - run: pnpm -C web test
+      - run: pnpm -C web check
+      - run: pnpm -C web build
+        env:
+          BASE_PATH: /pdga-tools
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: web/build
+
+  deploy:
+    needs: build
+    if: always() && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5

@@ -68,6 +68,9 @@ PDGA publishes ratings on the second Tuesday of each month
 | `3`  | Skipped (not time yet, file exists, or ratings not out) |
 | other | Failure |
 
+`go run` reports any non-zero exit as `1`, so the workflow builds the fetcher
+and runs the binary to see the real code.
+
 ### Monitoring
 
 Two [Healthchecks.io](https://healthchecks.io) checks, pinged from the
@@ -192,6 +195,22 @@ rating) / total players.
 - Use `division_code`, not `division_name`. Names change (e.g. "Open" became
   "Mixed Pro Open" while the code stayed `MPO`).
 - Codes include non-standard ones like `RAH` ("Blue").
+
+## Deployment
+
+`.github/workflows/update.yml` has three jobs:
+
+| Job | Runs on | Does |
+|-----|---------|------|
+| `fetch` | Schedule, manual dispatch | Runs the fetcher, pings Healthchecks, commits and pushes `data/` on exit `0` |
+| `build` | Push to `main`, manual dispatch, schedule with new data | Tests, checks, and builds with `BASE_PATH=/pdga-tools` |
+| `deploy` | After `build` | Publishes to GitHub Pages |
+
+Build and deploy run in the same workflow as the fetch because pushes made
+with the workflow's `GITHUB_TOKEN` don't trigger new workflow runs. Scheduled
+runs that skip (exit `3`) don't redeploy.
+
+Pages must be set to deploy from GitHub Actions (Settings → Pages → Source).
 
 ## Configuration
 
