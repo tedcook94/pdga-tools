@@ -78,3 +78,42 @@ func TestSummarizeExcludesZero(t *testing.T) {
 		t.Errorf("summary = %+v", got)
 	}
 }
+
+func TestDivisionCounts(t *testing.T) {
+	active := map[string]int{"1": 900, "2": 950, "3": 900}
+	d := newDivisionTracker(active)
+	for _, row := range []PlayerStat{
+		{"1", "2025", "MA1"},
+		{"1", "2026", "MA1"}, // same division in both years counts once
+		{"1", "2026", "MPO"}, // second division counts too
+		{"2", "2026", "MPO"},
+		{"3", "2025", "MA1"},
+		{"4", "2026", "MA1"}, // not active
+		{"2", "2026", ""},    // missing code
+	} {
+		d.add(row)
+	}
+
+	got := d.counts()
+	if len(got) != 2 {
+		t.Fatalf("divisions = %v, want MA1 and MPO", got)
+	}
+	if ma1 := got["MA1"]; ma1.Total != 2 || !maps.Equal(ma1.Ratings, map[int]int{900: 2}) {
+		t.Errorf("MA1 = %+v", ma1)
+	}
+	if mpo := got["MPO"]; mpo.Total != 2 || !maps.Equal(mpo.Ratings, map[int]int{900: 1, 950: 1}) {
+		t.Errorf("MPO = %+v", mpo)
+	}
+}
+
+func TestSummarizeActiveMap(t *testing.T) {
+	players := map[string]Player{
+		"1": player("1", new("900"), new("2026-10-13")),
+		"2": player("2", new("0"), new("2026-10-13")),
+		"3": player("3", nil, new("2026-10-13")),
+	}
+	got := summarize(players, date("2026-10-13")).Active
+	if !maps.Equal(got, map[string]int{"1": 900}) {
+		t.Errorf("Active = %v, want only player 1", got)
+	}
+}

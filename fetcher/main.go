@@ -83,20 +83,52 @@ func run(ctx context.Context, cfg config, now time.Time) error {
 		return errors.New("PDGA_USERNAME and PDGA_PASSWORD must be set")
 	}
 
-	players, err := fetch(ctx, cfg, username, password)
+	c := NewClient()
+	c.Delay = cfg.delay
+	c.BaseURL = cfg.baseURL
+	if err := c.Login(ctx, username, password); err != nil {
+		return err
+	}
+	defer func() {
+		// Use a fresh context so logout still runs after cancellation.
+		logoutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := c.Logout(logoutCtx); err != nil {
+			log.Printf("warning: %v", err)
+		}
+	}()
+
+	c.Progress = progressLogger(cfg, "pass 1 of 2: players")
+	players, err := c.FetchPlayers(ctx, cfg.maxPages)
 	if err != nil {
 		return err
 	}
-
 	s := summarize(players, update)
 	log.Printf("fetched %d players: %d active, %d zero, %d malformed, published=%v",
 		len(players), s.Total, s.Zero, s.Malformed, s.Published)
+	// Free the full player list; only active numbers are needed from here on.
+	players = nil
+
+	// Checked before the second pass so retry days don't double the API load.
+	if !cfg.dryRun && !s.Published {
+		return fmt.Errorf("%w: ratings for %s not published yet", errSkipped, update.Format(time.DateOnly))
+	}
+
+	tracker := newDivisionTracker(s.Active)
+	for _, year := range divisionYears(update) {
+		c.Progress = progressLogger(cfg, fmt.Sprintf("pass 2 of 2: %d divisions", year))
+		rows, err := c.FetchPlayerStatistics(ctx, year, cfg.maxPages, tracker.add)
+		if err != nil {
+			return err
+		}
+		log.Printf("fetched %d player statistics rows for %d", rows, year)
+	}
+	s.Divisions = tracker.counts()
+	s.Active = nil
+	log.Printf("%d divisions with active players", len(s.Divisions))
 
 	if cfg.dryRun {
 		return fmt.Errorf("%w: dry run, nothing written", errSkipped)
-	}
-	if !s.Published {
-		return fmt.Errorf("%w: ratings for %s not published yet", errSkipped, update.Format(time.DateOnly))
 	}
 	prev, err := previousTotal(cfg.dataDir)
 	if err != nil {
@@ -112,28 +144,14 @@ func run(ctx context.Context, cfg config, now time.Time) error {
 	return nil
 }
 
-func fetch(ctx context.Context, cfg config, username, password string) (map[string]Player, error) {
-	c := NewClient()
-	c.Delay = cfg.delay
-	c.BaseURL = cfg.baseURL
-	if cfg.progress > 0 {
-		start := time.Now()
-		c.Progress = func(pages, players int) {
-			if pages%cfg.progress == 0 {
-				log.Printf("page %d: %d players, %s elapsed", pages, players, time.Since(start).Round(time.Second))
-			}
+func progressLogger(cfg config, label string) func(pages, rows int) {
+	if cfg.progress <= 0 {
+		return nil
+	}
+	start := time.Now()
+	return func(pages, rows int) {
+		if pages%cfg.progress == 0 {
+			log.Printf("%s: page %d, %d rows, %s elapsed", label, pages, rows, time.Since(start).Round(time.Second))
 		}
 	}
-	if err := c.Login(ctx, username, password); err != nil {
-		return nil, err
-	}
-	defer func() {
-		// Use a fresh context so logout still runs after cancellation.
-		logoutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if err := c.Logout(logoutCtx); err != nil {
-			log.Printf("warning: %v", err)
-		}
-	}()
-	return c.FetchPlayers(ctx, cfg.maxPages)
 }

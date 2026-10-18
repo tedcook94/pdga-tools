@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"testing"
 	"time"
 )
@@ -90,4 +91,10 @@ func mustLoad(t *testing.T, name string) *time.Location {
 		t.Skipf("time zone %s unavailable: %v", name, err)
 	}
 	return loc
+}
+
+func TestDivisionYears(t *testing.T) {
+	if got := divisionYears(date("2026-01-13")); !slices.Equal(got, []int{2025, 2026}) {
+		t.Errorf("divisionYears = %v, want [2025 2026]", got)
+	}
 }

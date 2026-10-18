@@ -109,6 +109,35 @@ func (c *Client) FetchPlayers(ctx context.Context, maxPages int) (map[string]Pla
 	return players, nil
 }
 
+func (c *Client) FetchPlayerStatistics(ctx context.Context, year, maxPages int, visit func(PlayerStat)) (int, error) {
+	rows := 0
+	for page := 0; maxPages <= 0 || page < maxPages; page++ {
+		q := url.Values{
+			"year":   {strconv.Itoa(year)},
+			"limit":  {strconv.Itoa(pageSize)},
+			"offset": {strconv.Itoa(page * pageSize)},
+		}
+		var resp struct {
+			Status  int          `json:"status"`
+			Players []PlayerStat `json:"players"`
+		}
+		if err := c.do(ctx, http.MethodGet, "/player-statistics?"+q.Encode(), nil, &resp); err != nil {
+			return rows, fmt.Errorf("player statistics %d page %d: %w", year, page, err)
+		}
+		if resp.Status != 0 || len(resp.Players) == 0 {
+			break
+		}
+		for _, s := range resp.Players {
+			visit(s)
+		}
+		rows += len(resp.Players)
+		if c.Progress != nil {
+			c.Progress(page+1, rows)
+		}
+	}
+	return rows, nil
+}
+
 func (c *Client) do(ctx context.Context, method, path string, body []byte, out any) error {
 	var err error
 	for attempt := range maxAttempts {

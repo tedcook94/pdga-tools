@@ -21,6 +21,7 @@ type fakePDGA struct {
 	failFirst   int32
 	failures    atomic.Int32
 	pageCalls   atomic.Int32
+	statsCalls  atomic.Int32
 	loggedOut   atomic.Bool
 	lastRequest atomic.Int64
 	minGap      atomic.Int64
@@ -58,6 +59,13 @@ func (f *fakePDGA) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		f.pageCalls.Add(1)
 		f.writePage(w, r)
+	case "/player-statistics":
+		if !f.authorized(r) {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		f.statsCalls.Add(1)
+		f.writeStatsPage(w, r)
 	default:
 		w.WriteHeader(http.StatusNotFound)
 	}
@@ -84,6 +92,62 @@ func (f *fakePDGA) writePage(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	json.NewEncoder(w).Encode(map[string]any{"status": 0, "players": rows})
+}
+
+// statsRows returns fake division rows: odd players played MA1 in both years,
+// multiples of 3 played MPO in 2026 only, and one row belongs to a player who
+// isn't in /players.
+func (f *fakePDGA) statsRows(year string) []map[string]any {
+	var rows []map[string]any
+	for n := 1; n <= f.total; n++ {
+		if n%2 == 1 {
+			rows = append(rows, statRow(n, year, "MA1"))
+		}
+		if n%3 == 0 && year == "2026" {
+			rows = append(rows, statRow(n, year, "MPO"))
+		}
+	}
+	return append(rows, statRow(f.total+1, year, "FPO"))
+}
+
+func statRow(n int, year, division string) map[string]any {
+	return map[string]any{"pdga_number": strconv.Itoa(n), "year": year, "division_code": division}
+}
+
+func (f *fakePDGA) writeStatsPage(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	rows := f.statsRows(q.Get("year"))
+	if offset >= len(rows) {
+		json.NewEncoder(w).Encode(map[string]int{"status": 1})
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]any{"status": 0, "players": rows[offset:min(offset+limit, len(rows))]})
+}
+
+func TestFetchPlayerStatistics(t *testing.T) {
+	f := &fakePDGA{total: 450}
+	c := newTestClient(t, f)
+	ctx := context.Background()
+	if err := c.Login(ctx, "u", "p"); err != nil {
+		t.Fatal(err)
+	}
+	var seen []PlayerStat
+	rows, err := c.FetchPlayerStatistics(ctx, 2026, 0, func(s PlayerStat) { seen = append(seen, s) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 225 MA1 + 150 MPO + 1 unknown player.
+	if rows != 376 || len(seen) != 376 {
+		t.Errorf("rows = %d, seen = %d, want 376", rows, len(seen))
+	}
+	if seen[0] != (PlayerStat{PDGANumber: "1", Year: "2026", DivisionCode: "MA1"}) {
+		t.Errorf("first row = %+v", seen[0])
+	}
+	if got := f.statsCalls.Load(); got != 3 {
+		t.Errorf("stats calls = %d, want 3 (2 data pages + end)", got)
+	}
 }
 
 func newTestClient(t *testing.T, f *fakePDGA) *Client {

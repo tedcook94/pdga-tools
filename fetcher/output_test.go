@@ -38,7 +38,11 @@ func TestWriteMonthAndIndex(t *testing.T) {
 		t.Fatalf("previousTotal with no data = %d, %v", prev, err)
 	}
 
-	s := Summary{Ratings: map[int]int{900: 2, 950: 1}, Total: 3}
+	s := Summary{
+		Ratings:   map[int]int{900: 2, 950: 1},
+		Total:     3,
+		Divisions: map[string]Counts{"MA1": {Total: 2, Ratings: map[int]int{900: 2}}},
+	}
 	if err := writeMonth(dir, date("2026-10-13"), now, s); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +55,8 @@ func TestWriteMonthAndIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	if month.TotalPlayers != 3 || month.Ratings[900] != 2 || month.RatingsUpdate != "2026-10-13" ||
-		month.GeneratedAt != "2026-10-14" || month.ActiveWindowMonths != activeWindowMonths {
+		month.GeneratedAt != "2026-10-14" || month.ActiveWindowMonths != activeWindowMonths ||
+		month.Divisions["MA1"].Ratings[900] != 2 {
 		t.Errorf("month file = %+v", month)
 	}
 

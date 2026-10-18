@@ -46,6 +46,12 @@ func TestRun(t *testing.T) {
 		if month.TotalPlayers != 450 {
 			t.Errorf("TotalPlayers = %d, want 450", month.TotalPlayers)
 		}
+		// Odd players played MA1 in 2025 and 2026; multiples of 3 played MPO
+		// in 2026. The non-active FPO player is dropped.
+		if len(month.Divisions) != 2 || month.Divisions["MA1"].Total != 225 ||
+			month.Divisions["MPO"].Total != 150 || month.Divisions["MPO"].Ratings[900] != 150 {
+			t.Errorf("Divisions = %+v", month.Divisions)
+		}
 		if err := run(ctx, cfg, afterUpdate.Add(24*time.Hour)); !errors.Is(err, errSkipped) {
 			t.Errorf("second run err = %v, want skipped", err)
 		}
@@ -63,11 +69,18 @@ func TestRun(t *testing.T) {
 		}
 	})
 
-	t.Run("not published skips", func(t *testing.T) {
+	t.Run("not published skips before the division pass", func(t *testing.T) {
+		f := &fakePDGA{total: 10}
 		cfg := testConfig(t, 10)
+		srv := httptest.NewServer(f)
+		t.Cleanup(srv.Close)
+		cfg.baseURL = srv.URL
 		nextMonth := time.Date(2026, 11, 10, 17, 0, 0, 0, time.UTC)
 		if err := run(ctx, cfg, nextMonth); !errors.Is(err, errSkipped) {
 			t.Fatalf("err = %v, want skipped", err)
+		}
+		if got := f.statsCalls.Load(); got != 0 {
+			t.Errorf("stats calls = %d, want 0", got)
 		}
 	})
 

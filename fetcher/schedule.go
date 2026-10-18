@@ -27,3 +27,7 @@ func activeCutoff(update time.Time) time.Time {
 func monthKey(update time.Time) string {
 	return update.Format("2006-01")
 }
+
+func divisionYears(update time.Time) []int {
+	return []int{update.Year() - 1, update.Year()}
+}

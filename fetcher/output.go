@@ -14,11 +14,12 @@ import (
 const maxTotalChange = 0.10
 
 type MonthFile struct {
-	GeneratedAt        string      `json:"generated_at"`
-	RatingsUpdate      string      `json:"ratings_update"`
-	ActiveWindowMonths int         `json:"active_window_months"`
-	TotalPlayers       int         `json:"total_players"`
-	Ratings            map[int]int `json:"ratings"`
+	GeneratedAt        string            `json:"generated_at"`
+	RatingsUpdate      string            `json:"ratings_update"`
+	ActiveWindowMonths int               `json:"active_window_months"`
+	TotalPlayers       int               `json:"total_players"`
+	Ratings            map[int]int       `json:"ratings"`
+	Divisions          map[string]Counts `json:"divisions,omitempty"`
 }
 
 type Index struct {
@@ -82,6 +83,7 @@ func writeMonth(dir string, update, now time.Time, s Summary) error {
 		ActiveWindowMonths: activeWindowMonths,
 		TotalPlayers:       s.Total,
 		Ratings:            s.Ratings,
+		Divisions:          s.Divisions,
 	}
 	if err := writeJSONAtomic(monthPath(dir, key), month); err != nil {
 		return err
