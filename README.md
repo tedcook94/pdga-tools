@@ -18,15 +18,19 @@ The PDGA approved bulk data use under the API License Agreement.
 
 1. A GitHub Action runs the Go fetcher after the monthly ratings update
    (see [Schedule](#schedule)).
-2. The fetcher logs in to the PDGA API, pages through `/players` with
-   `limit=200` at about 1 request per second, and logs out.
+2. The fetcher logs in to the PDGA API and pages through `/players` with
+   `limit=200` at about 1 request per second.
 3. It builds an in-memory map of `pdga_number` to player and keeps only
    active players (see below).
-4. It outputs **aggregate counts only**: the number of players at each rating.
-   No names or PDGA numbers are written to disk or published.
-5. Each month's aggregates are saved as a new file in `data/`, building a
+4. A second pass pages through `/player-statistics` for the current and
+   previous calendar year at the same pace, recording which divisions each
+   active player played (see [Divisions](#divisions)). Then it logs out.
+5. It outputs **aggregate counts only**: the number of players at each rating,
+   overall and per division. No names or PDGA numbers are written to disk or
+   published.
+6. Each month's aggregates are saved as a new file in `data/`, building a
    history for trend views.
-6. `data/` is copied into the static SvelteKit build on GitHub Pages. The
+7. `data/` is copied into the static SvelteKit build on GitHub Pages. The
    site loads the JSON, and the user's browser computes their percentile
    from the rating they enter.
 
@@ -43,6 +47,14 @@ last two rating updates, and the API hides ratings for expired members.
 Together, this means "a current member whose rating changed from rated play
 in the last year."
 
+### Divisions
+
+An active player counts in every division they played in the current or
+previous calendar year, so a player in both MA1 and MPO is in both buckets.
+`/player-statistics` has no event dates, so whole years stand in for the
+12-month window; the previous year keeps divisions populated early in the
+year. Every division with at least one active player gets a bucket.
+
 ## Schedule
 
 PDGA publishes ratings on the second Tuesday of each month
@@ -54,11 +66,13 @@ PDGA publishes ratings on the second Tuesday of each month
 - **Each run, the fetcher:**
   1. Skips if today is before this month's second Tuesday.
   2. Skips if this month's file already exists.
-  3. Runs the full pull (about 25 minutes).
+  3. Pulls `/players`.
   4. Skips without writing if no player has a `rating_effective_date` on or
      after this month's second Tuesday. Ratings aren't out yet, so the next
-     day's run retries.
-  5. Fails without writing if the active total differs from last month's by
+     day's run retries. This check comes before the second pass, so retry
+     days make no `/player-statistics` calls.
+  5. Pulls `/player-statistics` for both years.
+  6. Fails without writing if the active total differs from last month's by
      more than about 10%.
 - Output files are named after the ratings update month (e.g. `2026-10.json`),
   not the run date.
@@ -120,10 +134,16 @@ home (in `+layout.svelte`). Links use
 
 - A rating input (whole number, 0–1100) and the percentile, which
   updates as you type. Empty or out-of-range input shows a hint instead.
-- A distribution curve of active ratings (plain SVG, lightly smoothed), with
+- Once a rating is entered, the result reads "percentile of all ⌄ players".
+  "all" is an inline picker for a division, grouped Pro, Amateur, Junior,
+  then Other (nonstandard codes). The percentile, curve, and counts follow
+  the selection. Month files without `divisions` show no picker.
+- A distribution curve of active ratings (plain SVG, smoothed), with
   the area left of your rating shaded and a draggable marker. Dragging,
   tapping, or arrow keys set the rating and update the input. The curve
-  shows before any rating is entered.
+  shows before any rating is entered. Smaller divisions get wider smoothing
+  (about ±10 ratings for all players, up to ±50 for a handful), and the
+  axis spans at least 200 ratings.
 - Shows which ratings update the data is from.
 - Styles live in each component's `<style>` block, built on
   [Open Props](https://open-props.style) variables. Shared pieces (theme
@@ -152,7 +172,10 @@ home (in `+layout.svelte`). Links use
       "ratings_update": "2026-12-08",
       "active_window_months": 12,
       "total_players": 123456,
-      "ratings": { "750": 312, "751": 298 }
+      "ratings": { "750": 312, "751": 298 },
+      "divisions": {
+        "MA1": { "total": 25292, "ratings": { "750": 41, "751": 38 } }
+      }
     }
 
 Percentile = (players rated below you + half the players with your exact
@@ -197,7 +220,11 @@ rating) / total players.
 - `class` is the player's current class, not their class that year.
 - Use `division_code`, not `division_name`. Names change (e.g. "Open" became
   "Mixed Pro Open" while the code stayed `MPO`).
-- Codes include non-standard ones like `RAH` ("Blue").
+- Codes include non-standard ones like `RAH` ("Blue"), `FC3`, `FSV`, and
+  `MSJV`.
+- Rows are not ordered by `pdga_number`.
+- The response key is `players`, as in `/players`.
+- About 165,000 rows for 2025.
 
 ## Deployment
 
@@ -212,6 +239,10 @@ rating) / total players.
 Build and deploy run in the same workflow as the fetch because pushes made
 with the workflow's `GITHUB_TOKEN` don't trigger new workflow runs. Scheduled
 runs that skip (exit `3`) don't redeploy.
+
+Only `main` deploys. A manual run on another branch fetches, commits data to
+that branch, and builds, but skips `deploy`; merging to `main` publishes it.
+The fetch job's timeout is 120 minutes for a pull of about 80.
 
 Pages must be set to deploy from GitHub Actions (Settings → Pages → Source).
 
@@ -228,7 +259,7 @@ From the repo root, with `PDGA_USERNAME` and `PDGA_PASSWORD` in `.env`:
 
     go -C fetcher run . -data ../data -env ../.env
 
-A full pull takes about 25 minutes and logs progress about once a minute.
+A full pull takes about 80 minutes and logs progress about once a minute.
 
 | Flag | Default | Purpose |
 |------|---------|---------|
@@ -237,9 +268,10 @@ A full pull takes about 25 minutes and logs progress about once a minute.
 | `-delay` | `1s` | Minimum time between API requests |
 | `-progress` | `50` | Log progress every N pages (`0` = off) |
 | `-dry-run` | `false` | Fetch and summarize without writing files |
-| `-max-pages` | `0` | Stop after N pages (`0` = all); implies `-dry-run` |
+| `-max-pages` | `0` | Stop after N pages per pass (`0` = all); implies `-dry-run` |
 
-Quick check that credentials and the API work (3 requests, writes nothing):
+Quick check that credentials and both endpoints work (about 11 requests,
+writes nothing):
 
     go -C fetcher run . -data ../data -env ../.env -max-pages 3
 
@@ -271,13 +303,8 @@ Requires Node 22+ and pnpm.
 
 ## Roadmap (V2)
 
-- **Group percentiles:** location and class come from `/players`. Gender and
-  division need a second pass over `/player-statistics` for the current and
-  previous year, matched by PDGA number in memory.
-- **Age groups:** based on each player's highest age-protected division,
-  including junior divisions (e.g. MA65 means 65+, MJ15 means 15 or under).
-  Age is tied to the year of that division, so add the years since.
-  Needs exploration.
+- **Location percentiles:** state/province and country come from `/players`,
+  so no extra API calls. Class could be added the same way.
 - **Trends over time:** how the percentile for a given rating changes
   (e.g. 900 was the 60th percentile in 2020 and the 70th now). Past years
   can be backfilled from `/player-statistics?year=...`.
