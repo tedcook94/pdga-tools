@@ -43,6 +43,9 @@ func TestRun(t *testing.T) {
 		if err := readJSON(monthPath(cfg.dataDir, "2026-10"), &month); err != nil {
 			t.Fatal(err)
 		}
+		if month.PlayersFetched != 450 {
+			t.Errorf("PlayersFetched = %d, want 450", month.PlayersFetched)
+		}
 		if month.TotalPlayers != 450 {
 			t.Errorf("TotalPlayers = %d, want 450", month.TotalPlayers)
 		}
@@ -84,9 +87,9 @@ func TestRun(t *testing.T) {
 		}
 	})
 
-	t.Run("large total change fails", func(t *testing.T) {
+	t.Run("large drop in fetched records fails", func(t *testing.T) {
 		cfg := testConfig(t, 450)
-		prev := Summary{Ratings: map[int]int{900: 1000}, Total: 1000}
+		prev := Summary{Ratings: map[int]int{900: 1000}, Total: 1000, Fetched: 1000}
 		if err := writeMonth(cfg.dataDir, date("2026-09-08"), afterUpdate, prev); err != nil {
 			t.Fatal(err)
 		}

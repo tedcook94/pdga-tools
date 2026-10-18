@@ -104,6 +104,7 @@ func run(ctx context.Context, cfg config, now time.Time) error {
 		return err
 	}
 	s := summarize(players, update)
+	s.Fetched = len(players)
 	log.Printf("fetched %d players: %d active, %d zero, %d malformed, published=%v",
 		len(players), s.Total, s.Zero, s.Malformed, s.Published)
 	// Free the full player list; only active numbers are needed from here on.
@@ -130,11 +131,11 @@ func run(ctx context.Context, cfg config, now time.Time) error {
 	if cfg.dryRun {
 		return fmt.Errorf("%w: dry run, nothing written", errSkipped)
 	}
-	prev, err := previousTotal(cfg.dataDir)
+	prev, err := previousFetched(cfg.dataDir)
 	if err != nil {
 		return err
 	}
-	if err := checkTotal(prev, s.Total); err != nil {
+	if err := checkFetched(prev, s.Fetched); err != nil {
 		return err
 	}
 	if err := writeMonth(cfg.dataDir, update, now, s); err != nil {

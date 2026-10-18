@@ -25,6 +25,7 @@ type Counts struct {
 type Summary struct {
 	Ratings   map[int]int
 	Total     int
+	Fetched   int
 	Divisions map[string]Counts
 	Active    map[string]int
 	Published bool

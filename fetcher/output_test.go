@@ -8,21 +8,21 @@ import (
 	"testing"
 )
 
-func TestCheckTotal(t *testing.T) {
+func TestCheckFetched(t *testing.T) {
 	tests := []struct {
 		prev, cur int
 		ok        bool
 	}{
-		{0, 500, true},
-		{1000, 1000, true},
-		{1000, 1100, true},
-		{1000, 900, true},
-		{1000, 1101, false},
-		{1000, 899, false},
+		{0, 500, true},          // no previous value
+		{300000, 300000, true},  // unchanged
+		{300000, 310000, true},  // growth
+		{300000, 299500, true},  // drop of exactly 500
+		{300000, 299499, false}, // drop of 501
+		{300000, 200000, false}, // paging stopped early
 	}
 	for _, tt := range tests {
-		if err := checkTotal(tt.prev, tt.cur); (err == nil) != tt.ok {
-			t.Errorf("checkTotal(%d, %d) = %v, want ok=%v", tt.prev, tt.cur, err, tt.ok)
+		if err := checkFetched(tt.prev, tt.cur); (err == nil) != tt.ok {
+			t.Errorf("checkFetched(%d, %d) = %v, want ok=%v", tt.prev, tt.cur, err, tt.ok)
 		}
 	}
 }
@@ -34,13 +34,14 @@ func TestWriteMonthAndIndex(t *testing.T) {
 	if exists, err := monthExists(dir, "2026-10"); err != nil || exists {
 		t.Fatalf("monthExists before write = %v, %v", exists, err)
 	}
-	if prev, err := previousTotal(dir); err != nil || prev != 0 {
-		t.Fatalf("previousTotal with no data = %d, %v", prev, err)
+	if prev, err := previousFetched(dir); err != nil || prev != 0 {
+		t.Fatalf("previousFetched with no data = %d, %v", prev, err)
 	}
 
 	s := Summary{
 		Ratings:   map[int]int{900: 2, 950: 1},
 		Total:     3,
+		Fetched:   10,
 		Divisions: map[string]Counts{"MA1": {Total: 2, Ratings: map[int]int{900: 2}}},
 	}
 	if err := writeMonth(dir, date("2026-10-13"), now, s); err != nil {
@@ -67,8 +68,8 @@ func TestWriteMonthAndIndex(t *testing.T) {
 	if !slices.Equal(idx.Months, []string{"2026-09", "2026-10"}) || idx.Latest != "2026-10" {
 		t.Errorf("index = %+v", idx)
 	}
-	if prev, err := previousTotal(dir); err != nil || prev != 3 {
-		t.Errorf("previousTotal = %d, %v; want 3", prev, err)
+	if prev, err := previousFetched(dir); err != nil || prev != 10 {
+		t.Errorf("previousFetched = %d, %v; want 10", prev, err)
 	}
 
 	entries, _ := os.ReadDir(dir)

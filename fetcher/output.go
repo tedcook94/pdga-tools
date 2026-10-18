@@ -11,13 +11,14 @@ import (
 	"time"
 )
 
-const maxTotalChange = 0.10
+const maxFetchedDrop = 500
 
 type MonthFile struct {
 	GeneratedAt        string            `json:"generated_at"`
 	RatingsUpdate      string            `json:"ratings_update"`
 	ActiveWindowMonths int               `json:"active_window_months"`
 	TotalPlayers       int               `json:"total_players"`
+	PlayersFetched     int               `json:"players_fetched,omitempty"`
 	Ratings            map[int]int       `json:"ratings"`
 	Divisions          map[string]Counts `json:"divisions,omitempty"`
 }
@@ -48,8 +49,7 @@ func readIndex(dir string) (Index, error) {
 	return idx, err
 }
 
-// previousTotal returns 0 when there is no earlier month to compare against.
-func previousTotal(dir string) (int, error) {
+func previousFetched(dir string) (int, error) {
 	idx, err := readIndex(dir)
 	if err != nil || idx.Latest == "" {
 		return 0, err
@@ -58,18 +58,15 @@ func previousTotal(dir string) (int, error) {
 	if err := readJSON(monthPath(dir, idx.Latest), &prev); err != nil {
 		return 0, err
 	}
-	return prev.TotalPlayers, nil
+	return prev.PlayersFetched, nil
 }
 
-func checkTotal(prev, cur int) error {
-	if prev == 0 {
+func checkFetched(prev, cur int) error {
+	if prev == 0 || prev-cur <= maxFetchedDrop {
 		return nil
 	}
-	change := float64(cur-prev) / float64(prev)
-	if change > maxTotalChange || change < -maxTotalChange {
-		return fmt.Errorf("active total %d differs from previous %d by %.1f%%", cur, prev, change*100)
-	}
-	return nil
+	return fmt.Errorf("fetched %d player records, %d fewer than previous %d; paging may have stopped early",
+		cur, prev-cur, prev)
 }
 
 func writeMonth(dir string, update, now time.Time, s Summary) error {
@@ -82,6 +79,7 @@ func writeMonth(dir string, update, now time.Time, s Summary) error {
 		RatingsUpdate:      update.Format(time.DateOnly),
 		ActiveWindowMonths: activeWindowMonths,
 		TotalPlayers:       s.Total,
+		PlayersFetched:     s.Fetched,
 		Ratings:            s.Ratings,
 		Divisions:          s.Divisions,
 	}

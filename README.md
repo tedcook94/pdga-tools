@@ -72,8 +72,9 @@ PDGA publishes ratings on the second Tuesday of each month
      day's run retries. This check comes before the second pass, so retry
      days make no `/player-statistics` calls.
   5. Pulls `/player-statistics` for both years.
-  6. Fails without writing if the active total differs from last month's by
-     more than about 10%.
+  6. Fails without writing if it fetched more than 500 fewer `/players`
+     records than last month. That count includes expired members, so it
+     should only grow; a drop means paging stopped early.
 - Output files are named after the ratings update month (e.g. `2026-10.json`),
   not the run date.
 
@@ -171,12 +172,16 @@ home (in `+layout.svelte`). Links use
       "generated_at": "2026-12-09",
       "ratings_update": "2026-12-08",
       "active_window_months": 12,
-      "total_players": 123456,
+      "total_players": 84594,
+      "players_fetched": 312345,
       "ratings": { "750": 312, "751": 298 },
       "divisions": {
         "MA1": { "total": 25292, "ratings": { "750": 41, "751": 38 } }
       }
     }
+
+`total_players` is the active count; `players_fetched` is every `/players`
+record, used only for the paging check.
 
 Percentile = (players rated below you + half the players with your exact
 rating) / total players.
@@ -184,8 +189,11 @@ rating) / total players.
 ## Fetcher rules
 
 - Stop paging when the response has `status != 0` or an empty `players` array.
-- Fail without publishing if the active total differs from last month's by
-  more than about 10%. A `status: 1` partway through could be a real error.
+- Fail without publishing if `players_fetched` drops more than 500 below
+  last month's. A `status: 1` partway through could be a real error, and
+  because `/players` is ordered by PDGA number, a cut-off loses the newest
+  members. Active totals aren't compared: memberships expiring on December 31
+  make January's active count drop for real.
 - Never log raw responses. They include `sessid`.
 - Hold PDGA numbers in memory only, for matching. Discard them after
   aggregation.
