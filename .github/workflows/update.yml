@@ -18,7 +18,8 @@ jobs:
   fetch:
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # A full pull takes about 80 minutes.
+    timeout-minutes: 120
     permissions:
       contents: write
     outputs:
@@ -118,7 +119,8 @@ jobs:
 
   deploy:
     needs: build
-    if: always() && needs.build.result == 'success'
+    # Manual runs on other branches build and test but don't publish.
+    if: always() && needs.build.result == 'success' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
