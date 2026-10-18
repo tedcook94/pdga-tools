@@ -8,8 +8,11 @@ your PDGA player rating falls in compared to active rated players.
 
 ## Status
 
-V1 in development. The PDGA approved bulk data use under the API License
-Agreement.
+V1 is live at <https://tedcook94.github.io/pdga-tools/>. Data updates
+monthly through the GitHub Action. The first automatic update is expected
+after the November 10, 2026 ratings release.
+
+The PDGA approved bulk data use under the API License Agreement.
 
 ## How it works
 
@@ -278,7 +281,6 @@ Requires Node 22+ and pnpm.
 - **Trends over time:** how the percentile for a given rating changes
   (e.g. 900 was the 60th percentile in 2020 and the 70th now). Past years
   can be backfilled from `/player-statistics?year=...`.
-- **Visualizations:** rating histogram with your position marked.
 - **Profile lookup and tournament search:** these need live API calls, so
   they go through a Cloudflare Worker. The Worker is a separate on-demand
   deployment (similar to AWS Lambda) that holds the PDGA credentials as
@@ -293,3 +295,9 @@ Requires Node 22+ and pnpm.
   for when their rounds count. Needs a source for existing round history
   (not in `/players` or `/player-statistics`), and testing against real
   updates to match PDGA's results.
+- **Head-to-head comparison:** enter two PDGA numbers and see every event
+  both played, with their head-to-head record. Open questions: what counts as
+  "against each other" (same division, or the same layout/round regardless
+  of division), and which endpoint provides per-player event results. Needs
+  live API calls, so it goes through the Cloudflare Worker like profile
+  lookup. Needs research.
