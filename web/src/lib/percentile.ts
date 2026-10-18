@@ -7,6 +7,7 @@ export interface MonthFile {
 	active_window_months: number;
 	total_players: number;
 	ratings: Record<string, number>;
+	divisions?: Record<string, { total: number; ratings: Record<string, number> }>;
 }
 
 export interface Result {

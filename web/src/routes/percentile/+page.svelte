@@ -1,5 +1,6 @@
 <script lang="ts">
 	import DistributionCurve from '#lib/DistributionCurve.svelte';
+	import { groupDivisions } from '#lib/divisions.ts';
 	import { MAX_RATING, MIN_RATING, isValidRating, ordinal, percentile } from '#lib/percentile.ts';
 	import type { PageProps } from './$types';
 
@@ -45,7 +46,18 @@
 
 	$effect(() => () => clearTimeout(timer));
 
-	const result = $derived(rating == null ? null : percentile(data.month.ratings, rating));
+	const ALL = '';
+	let division = $state(ALL);
+
+	const groups = $derived(groupDivisions(Object.keys(data.month.divisions ?? {})));
+	const selected = $derived(
+		(division && data.month.divisions?.[division]) || {
+			total: data.month.total_players,
+			ratings: data.month.ratings
+		}
+	);
+
+	const result = $derived(rating == null ? null : percentile(selected.ratings, rating));
 
 	const hint = $derived.by(() => {
 		if (rating == null) return `Enter a rating from ${MIN_RATING} to ${MAX_RATING}, or drag the curve.`;
@@ -94,18 +106,47 @@
 	</label>
 
 	<section class="card">
-		<div class="readout" aria-live="polite">
+		<div class="readout">
+			<div aria-live="polite">
+				{#if result}
+					<p class="percentile">
+						{result.percentile.toFixed(1)}<span class="suffix">{ordinal(result.percentile)}</span>
+					</p>
+				{:else}
+					<p class="hint">{hint}</p>
+				{/if}
+			</div>
 			{#if result}
-				<p class="percentile">
-					{result.percentile.toFixed(1)}<span class="suffix">{ordinal(result.percentile)}</span>
+				<p class="label">
+					percentile of
+					{#if groups.length > 0}
+						<span class="picker">
+							<span class="picker-text" aria-hidden="true">
+								{division || 'all'}
+								<svg viewBox="0 0 12 12"><path d="M3 4.5l3 3 3-3" /></svg>
+							</span>
+							<!-- Transparent select stretched over the visible text, so clicks
+							     anywhere on the code or chevron open the native list. -->
+							<select bind:value={division} aria-label="Compare against">
+								<option value={ALL}>all</option>
+								{#each groups as group (group.label)}
+									<optgroup label={group.label}>
+										{#each group.codes as code (code)}
+											<option value={code}>{code}</option>
+										{/each}
+									</optgroup>
+								{/each}
+							</select>
+						</span>
+					{:else}
+						all
+					{/if}
+					players
 				</p>
-				<p class="label">percentile</p>
-			{:else}
-				<p class="hint">{hint}</p>
 			{/if}
 		</div>
 
-		<DistributionCurve ratings={data.month.ratings} bind:rating={() => rating, setFromCurve} valid={result != null} />
+		<DistributionCurve ratings={selected.ratings} bind:rating={() => rating, setFromCurve} valid={result != null} />
 
 		{#if result}
 			<dl class="stats">
@@ -128,8 +169,8 @@
 	<div class="meta">
 		<p>Ratings as of {updateDate}</p>
 		<p>
-			{count(data.month.total_players)} active players whose rating changed in the last
-			{data.month.active_window_months} months
+			{count(selected.total)} active {division ? `${division} ` : ''}players whose rating changed
+			in the last {data.month.active_window_months} months
 		</p>
 	</div>
 </main>
@@ -237,6 +278,68 @@
 
 	.label {
 		color: var(--text-2);
+	}
+
+	.picker {
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.15em;
+		color: var(--accent);
+		font-weight: var(--font-weight-7);
+		border-block-end: var(--border-size-2) dotted currentColor;
+		cursor: pointer;
+	}
+
+	.picker:hover,
+	.picker:focus-within {
+		border-block-end-style: solid;
+	}
+
+	.picker:has(select:focus-visible) {
+		outline: var(--border-size-2) solid var(--accent);
+		outline-offset: var(--size-1);
+		border-radius: var(--radius-1);
+	}
+
+	.picker-text {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.15em;
+	}
+
+	select {
+		position: absolute;
+		inset: 0;
+		inline-size: 100%;
+		block-size: 100%;
+		opacity: 0;
+		appearance: none;
+		padding: 0;
+		font: inherit;
+		border: none;
+		cursor: pointer;
+	}
+
+	select:focus-visible {
+		outline: none;
+	}
+
+	/* Options render in a native popup that ignores the page's text color. */
+	option,
+	optgroup {
+		color: initial;
+		font-weight: normal;
+	}
+
+	.picker svg {
+		inline-size: 0.75em;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		pointer-events: none;
 	}
 
 	.stats {

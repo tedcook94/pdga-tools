@@ -11,23 +11,47 @@ export interface Curve {
 	points: CurvePoint[];
 }
 
-export function buildCurve(ratings: Record<string, number>, radius = 10): Curve | null {
+// Without a minimum, a division where everyone shares one rating has a
+// zero-width axis and every rating maps to the left edge.
+export const MIN_SPAN = 200;
+
+// Smaller groups get wider smoothing so a handful of players reads as a
+// shape instead of separate blocks: about ±10 at 10,000 players, ±50 under 10.
+export function smoothingRadius(total: number): number {
+	return Math.min(50, Math.max(10, Math.round(50 - 10 * Math.log10(Math.max(1, total)))));
+}
+
+export function buildCurve(ratings: Record<string, number>, radius?: number): Curve | null {
 	const entries = Object.entries(ratings).map(([k, v]) => [Number(k), v] as const);
 	if (entries.length === 0) return null;
 
-	const min = Math.min(...entries.map(([r]) => r));
-	const max = Math.max(...entries.map(([r]) => r));
+	let min = Math.min(...entries.map(([r]) => r));
+	let max = Math.max(...entries.map(([r]) => r));
+	if (max - min < MIN_SPAN) {
+		min = Math.max(0, Math.floor((min + max - MIN_SPAN) / 2));
+		max = min + MIN_SPAN;
+	}
 	const raw = new Array<number>(max - min + 1).fill(0);
 	for (const [r, count] of entries) raw[r - min] += count;
 
-	// Moving average over a window that shrinks at the edges, so the ends
-	// aren't dragged toward zero by missing neighbors.
+	const total = entries.reduce((sum, [, count]) => sum + count, 0);
+	const r = radius ?? smoothingRadius(total);
+	const sigma = r / 2;
+	const weights = Array.from({ length: r + 1 }, (_, d) =>
+		sigma > 0 ? Math.exp(-(d * d) / (2 * sigma * sigma)) : 1
+	);
+
+	// Gaussian weights, normalized over the neighbors that exist, so the ends
+	// aren't dragged toward zero by missing data.
 	const points = raw.map((_, i) => {
-		const from = Math.max(0, i - radius);
-		const to = Math.min(raw.length - 1, i + radius);
 		let sum = 0;
-		for (let j = from; j <= to; j++) sum += raw[j];
-		return { rating: min + i, count: sum / (to - from + 1) };
+		let weight = 0;
+		for (let j = Math.max(0, i - r); j <= Math.min(raw.length - 1, i + r); j++) {
+			const w = weights[Math.abs(i - j)];
+			sum += raw[j] * w;
+			weight += w;
+		}
+		return { rating: min + i, count: sum / weight };
 	});
 
 	const peak = Math.max(...points.map((p) => p.count));
