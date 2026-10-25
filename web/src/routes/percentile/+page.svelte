@@ -1,7 +1,18 @@
 <script lang="ts">
 	import DistributionCurve from '#lib/DistributionCurve.svelte';
+	import InlinePicker from '#lib/InlinePicker.svelte';
+	import { loadLocation } from '#lib/data.ts';
 	import { groupDivisions } from '#lib/divisions.ts';
-	import { MAX_RATING, MIN_RATING, isValidRating, ordinal, percentile } from '#lib/percentile.ts';
+	import { groupLocations, locationName } from '#lib/locations.ts';
+	import {
+		type Counts,
+		type LocationFile,
+		MAX_RATING,
+		MIN_RATING,
+		isValidRating,
+		ordinal,
+		percentile
+	} from '#lib/percentile.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -47,23 +58,75 @@
 	$effect(() => () => clearTimeout(timer));
 
 	const ALL = '';
+	const WORLD = '';
 	let division = $state(ALL);
+	let location = $state(WORLD);
 
-	const groups = $derived(groupDivisions(Object.keys(data.month.divisions ?? {})));
-	const selected = $derived(
-		(division && data.month.divisions?.[division]) || {
-			total: data.month.total_players,
-			ratings: data.month.ratings
+	// The loaded location's data; null means the world. Kept separate from
+	// `location` so the previous numbers stay on screen while a file loads.
+	let place = $state<LocationFile | null>(null);
+	let loadError = $state(false);
+
+	$effect(() => {
+		const key = location;
+		loadError = false;
+		if (key === WORLD) {
+			place = null;
+			return;
 		}
+		let current = true;
+		loadLocation(data.monthKey, key)
+			.then((file) => {
+				if (current) place = file;
+			})
+			.catch(() => {
+				if (current) loadError = true;
+			});
+		return () => {
+			current = false;
+		};
+	});
+
+	const scope = $derived<Counts & { divisions?: Record<string, Counts> }>(
+		place
+			? { total: place.total_players, ratings: place.ratings, divisions: place.divisions }
+			: {
+					total: data.month.total_players,
+					ratings: data.month.ratings,
+					divisions: data.month.divisions
+				}
 	);
+
+	// A division with no players in the chosen location resets to all.
+	$effect(() => {
+		if (division !== ALL && place && !place.divisions?.[division]) division = ALL;
+	});
+
+	const divisionGroups = $derived(
+		groupDivisions(Object.keys(scope.divisions ?? {})).map((g) => ({
+			label: g.label,
+			options: g.codes.map((code) => ({ value: code, label: code }))
+		}))
+	);
+	const locationGroups = $derived(
+		groupLocations(data.month.locations ?? []).map((g) => ({
+			label: g.label,
+			options: g.options.map((o) => ({ value: o.key, label: o.label, ariaLabel: o.ariaLabel }))
+		}))
+	);
+	const placeName = $derived(place ? locationName(place.location) : 'the world');
+
+	const selected = $derived<Counts>((division && scope.divisions?.[division]) || scope);
 
 	const result = $derived(rating == null ? null : percentile(selected.ratings, rating));
 
-	const hint = $derived.by(() => {
-		if (rating == null) return `Enter a rating from ${MIN_RATING} to ${MAX_RATING}, or drag the curve.`;
-		if (!Number.isInteger(rating)) return 'Ratings are whole numbers.';
-		if (!isValidRating(rating)) return `Ratings range from ${MIN_RATING} to ${MAX_RATING}.`;
-		return '';
+	// Phrases rather than one string, so a narrow card wraps between them.
+	const hint = $derived.by((): string[] => {
+		if (rating == null)
+			return [`Enter a rating from ${MIN_RATING} to ${MAX_RATING},`, 'or drag the curve.'];
+		if (!Number.isInteger(rating)) return ['Ratings are whole numbers.'];
+		if (!isValidRating(rating)) return [`Ratings range from ${MIN_RATING} to ${MAX_RATING}.`];
+		return [];
 	});
 
 	const count = (n: number) => n.toLocaleString('en-US');
@@ -113,36 +176,47 @@
 						{result.percentile.toFixed(1)}<span class="suffix">{ordinal(result.percentile)}</span>
 					</p>
 				{:else}
-					<p class="hint">{hint}</p>
+					<p class="hint">
+						{#each hint as phrase, i (i)}<span class="phrase">{phrase}</span>{' '}{/each}
+					</p>
 				{/if}
 			</div>
 			{#if result}
 				<p class="label">
+					<!-- Each half stays on one line, so a long location wraps before "in". -->
+					<span class="phrase">
 					percentile of
-					{#if groups.length > 0}
-						<span class="picker">
-							<span class="picker-text" aria-hidden="true">
-								{division || 'all'}
-								<svg viewBox="0 0 12 12"><path d="M3 4.5l3 3 3-3" /></svg>
-							</span>
-							<!-- Transparent select stretched over the visible text, so clicks
-							     anywhere on the code or chevron open the native list. -->
-							<select bind:value={division} aria-label="Compare against">
-								<option value={ALL}>all</option>
-								{#each groups as group (group.label)}
-									<optgroup label={group.label}>
-										{#each group.codes as code (code)}
-											<option value={code}>{code}</option>
-										{/each}
-									</optgroup>
-								{/each}
-							</select>
-						</span>
+					{#if divisionGroups.length > 0}
+						<InlinePicker
+							bind:value={division}
+							display={division || 'all'}
+							ariaLabel="Division"
+							top={[{ value: ALL, label: 'all' }]}
+							groups={divisionGroups}
+						/>
 					{:else}
 						all
 					{/if}
 					players
+					</span>
+					<span class="phrase">
+					in
+					{#if locationGroups.length > 0}
+						<InlinePicker
+							bind:value={location}
+							display={placeName}
+							ariaLabel="Location"
+							top={[{ value: WORLD, label: 'the world' }]}
+							groups={locationGroups}
+						/>
+					{:else}
+						the world
+					{/if}
+					</span>
 				</p>
+				{#if loadError}
+					<p class="hint">Couldn't load {locationName(location)}. Showing {placeName}.</p>
+				{/if}
 			{/if}
 		</div>
 
@@ -169,8 +243,9 @@
 	<div class="meta">
 		<p>Ratings as of {updateDate}</p>
 		<p>
-			{count(selected.total)} active {division ? `${division} ` : ''}players whose rating changed
-			in the last {data.month.active_window_months} months
+			{count(selected.total)} active {division ? `${division} ` : ''}players{place
+				? ` in ${placeName}`
+				: ''} whose rating changed in the last {data.month.active_window_months} months
 		</p>
 	</div>
 </main>
@@ -280,66 +355,19 @@
 		color: var(--text-2);
 	}
 
-	.picker {
-		position: relative;
-		display: inline-flex;
-		align-items: center;
-		gap: 0.15em;
-		color: var(--accent);
-		font-weight: var(--font-weight-7);
-		border-block-end: var(--border-size-2) dotted currentColor;
-		cursor: pointer;
+	.phrase {
+		white-space: nowrap;
 	}
 
-	.picker:hover,
-	.picker:focus-within {
-		border-block-end-style: solid;
-	}
+	/* Phones: give the card's text more width instead of shrinking it. */
+	@media (max-width: 30rem) {
+		main {
+			padding-inline: var(--size-2);
+		}
 
-	.picker:has(select:focus-visible) {
-		outline: var(--border-size-2) solid var(--accent);
-		outline-offset: var(--size-1);
-		border-radius: var(--radius-1);
-	}
-
-	.picker-text {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.15em;
-	}
-
-	select {
-		position: absolute;
-		inset: 0;
-		inline-size: 100%;
-		block-size: 100%;
-		opacity: 0;
-		appearance: none;
-		padding: 0;
-		font: inherit;
-		border: none;
-		cursor: pointer;
-	}
-
-	select:focus-visible {
-		outline: none;
-	}
-
-	/* Options render in a native popup that ignores the page's text color. */
-	option,
-	optgroup {
-		color: initial;
-		font-weight: normal;
-	}
-
-	.picker svg {
-		inline-size: 0.75em;
-		fill: none;
-		stroke: currentColor;
-		stroke-width: 2;
-		stroke-linecap: round;
-		stroke-linejoin: round;
-		pointer-events: none;
+		.card {
+			padding-inline: var(--size-3);
+		}
 	}
 
 	.stats {
