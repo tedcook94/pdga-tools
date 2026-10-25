@@ -1,13 +1,27 @@
 export const MIN_RATING = 0;
 export const MAX_RATING = 1100;
 
+export interface Counts {
+	total: number;
+	ratings: Record<string, number>;
+}
+
 export interface MonthFile {
 	generated_at: string;
 	ratings_update: string;
 	active_window_months: number;
 	total_players: number;
+	players_fetched?: number;
 	ratings: Record<string, number>;
-	divisions?: Record<string, { total: number; ratings: Record<string, number> }>;
+	divisions?: Record<string, Counts>;
+	locations?: string[];
+}
+
+export interface LocationFile {
+	location: string;
+	total_players: number;
+	ratings: Record<string, number>;
+	divisions?: Record<string, Counts>;
 }
 
 export interface Result {
