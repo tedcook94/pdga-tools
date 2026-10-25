@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 )
@@ -42,6 +43,16 @@ func TestRun(t *testing.T) {
 		var month MonthFile
 		if err := readJSON(monthPath(cfg.dataDir, "2026-10"), &month); err != nil {
 			t.Fatal(err)
+		}
+		if !slices.Equal(month.Locations, []string{"US", "US-AL"}) {
+			t.Errorf("Locations = %v", month.Locations)
+		}
+		var al LocationFile
+		if err := readJSON(filepath.Join(cfg.dataDir, "2026-10", "US-AL.json"), &al); err != nil {
+			t.Fatal(err)
+		}
+		if al.TotalPlayers != 450 || al.Divisions["MPO"].Total != 150 {
+			t.Errorf("US-AL = total %d, MPO %d", al.TotalPlayers, al.Divisions["MPO"].Total)
 		}
 		if month.PlayersFetched != 450 {
 			t.Errorf("PlayersFetched = %d, want 450", month.PlayersFetched)

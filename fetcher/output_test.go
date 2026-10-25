@@ -43,6 +43,20 @@ func TestWriteMonthAndIndex(t *testing.T) {
 		Total:     3,
 		Fetched:   10,
 		Divisions: map[string]Counts{"MA1": {Total: 2, Ratings: map[int]int{900: 2}}},
+		Locations: map[string]LocationCounts{
+			"US-AL": {
+				Counts:    Counts{Total: 1, Ratings: map[int]int{900: 1}},
+				Divisions: map[string]Counts{"MA1": {Total: 1, Ratings: map[int]int{900: 1}}},
+			},
+			"US": {Counts: Counts{Total: 2, Ratings: map[int]int{900: 2}}},
+		},
+	}
+	// A stale file from an earlier run must not survive the rewrite.
+	if err := os.MkdirAll(filepath.Join(dir, "2026-10"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "2026-10", "DE.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
 	}
 	if err := writeMonth(dir, date("2026-10-13"), now, s); err != nil {
 		t.Fatal(err)
@@ -59,6 +73,23 @@ func TestWriteMonthAndIndex(t *testing.T) {
 		month.GeneratedAt != "2026-10-14" || month.ActiveWindowMonths != activeWindowMonths ||
 		month.Divisions["MA1"].Ratings[900] != 2 {
 		t.Errorf("month file = %+v", month)
+	}
+
+	if !slices.Equal(month.Locations, []string{"US", "US-AL"}) {
+		t.Errorf("month locations = %v", month.Locations)
+	}
+	var al LocationFile
+	if err := readJSON(filepath.Join(dir, "2026-10", "US-AL.json"), &al); err != nil {
+		t.Fatal(err)
+	}
+	if al.Location != "US-AL" || al.TotalPlayers != 1 || al.Divisions["MA1"].Ratings[900] != 1 {
+		t.Errorf("US-AL file = %+v", al)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "2026-10", "DE.json")); !os.IsNotExist(err) {
+		t.Errorf("stale DE.json still present: %v", err)
+	}
+	if b, _ := os.ReadFile(monthPath(dir, "2026-10")); strings.Contains(string(b), "\n  ") {
+		t.Error("month file is indented, want compact JSON")
 	}
 
 	idx, err := readIndex(dir)
@@ -87,7 +118,7 @@ func TestRatingsKeysSerializeAsStrings(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(monthPath(dir, "2026-10"))
-	if !strings.Contains(string(b), `"750": 1`) {
+	if !strings.Contains(string(b), `"750":1`) {
 		t.Errorf("unexpected output:\n%s", b)
 	}
 }

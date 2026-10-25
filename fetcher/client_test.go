@@ -89,6 +89,8 @@ func (f *fakePDGA) writePage(w http.ResponseWriter, r *http.Request) {
 			"pdga_number":           strconv.Itoa(n),
 			"rating":                "900",
 			"rating_effective_date": "2026-10-13",
+			"country":               "US",
+			"state_prov":            "AL",
 		})
 	}
 	json.NewEncoder(w).Encode(map[string]any{"status": 0, "players": rows})

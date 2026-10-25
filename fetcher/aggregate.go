@@ -9,6 +9,27 @@ type Player struct {
 	PDGANumber          string  `json:"pdga_number"`
 	Rating              *string `json:"rating"`
 	RatingEffectiveDate *string `json:"rating_effective_date"`
+	Country             string  `json:"country"`
+	StateProv           string  `json:"state_prov"`
+}
+
+var subdivisionCountries = map[string]bool{"US": true, "CA": true}
+var militaryStates = map[string]bool{"AA": true, "AE": true, "AP": true}
+
+func locationKeys(p Player) []string {
+	if p.Country == "" {
+		return nil
+	}
+	// The API files Puerto Rico both as a country and as a US state; it's
+	// listed once, as a country.
+	if p.Country == "US" && p.StateProv == "PR" {
+		return []string{"PR"}
+	}
+	keys := []string{p.Country}
+	if subdivisionCountries[p.Country] && p.StateProv != "" && !militaryStates[p.StateProv] {
+		keys = append(keys, p.Country+"-"+p.StateProv)
+	}
+	return keys
 }
 
 type PlayerStat struct {
@@ -22,20 +43,27 @@ type Counts struct {
 	Ratings map[int]int `json:"ratings"`
 }
 
+type LocationCounts struct {
+	Counts
+	Divisions map[string]Counts `json:"divisions,omitempty"`
+}
+
 type Summary struct {
-	Ratings   map[int]int
-	Total     int
-	Fetched   int
-	Divisions map[string]Counts
-	Active    map[string]int
-	Published bool
-	Zero      int
-	Malformed int
+	Ratings         map[int]int
+	Total           int
+	Fetched         int
+	Divisions       map[string]Counts
+	Locations       map[string]LocationCounts
+	Active          map[string]int
+	ActiveLocations map[string][]string
+	Published       bool
+	Zero            int
+	Malformed       int
 }
 
 func summarize(players map[string]Player, update time.Time) Summary {
 	cutoff := activeCutoff(update)
-	s := Summary{Ratings: map[int]int{}, Active: map[string]int{}}
+	s := Summary{Ratings: map[int]int{}, Active: map[string]int{}, ActiveLocations: map[string][]string{}}
 
 	for _, p := range players {
 		if p.RatingEffectiveDate == nil {
@@ -67,6 +95,9 @@ func summarize(players map[string]Player, update time.Time) Summary {
 		s.Ratings[rating]++
 		s.Total++
 		s.Active[p.PDGANumber] = rating
+		if keys := locationKeys(p); keys != nil {
+			s.ActiveLocations[p.PDGANumber] = keys
+		}
 	}
 	return s
 }
@@ -102,6 +133,35 @@ func (d *divisionTracker) counts() map[string]Counts {
 			c.Total++
 			c.Ratings[rating]++
 			out[code] = c
+		}
+	}
+	return out
+}
+
+func (d *divisionTracker) locationCounts(locations map[string][]string) map[string]LocationCounts {
+	out := map[string]LocationCounts{}
+	for number, keys := range locations {
+		rating, ok := d.active[number]
+		if !ok {
+			continue
+		}
+		for _, key := range keys {
+			loc, ok := out[key]
+			if !ok {
+				loc = LocationCounts{Counts: Counts{Ratings: map[int]int{}}, Divisions: map[string]Counts{}}
+			}
+			loc.Total++
+			loc.Ratings[rating]++
+			for code := range d.played[number] {
+				c, ok := loc.Divisions[code]
+				if !ok {
+					c = Counts{Ratings: map[int]int{}}
+				}
+				c.Total++
+				c.Ratings[rating]++
+				loc.Divisions[code] = c
+			}
+			out[key] = loc
 		}
 	}
 	return out

@@ -125,8 +125,9 @@ func run(ctx context.Context, cfg config, now time.Time) error {
 		log.Printf("fetched %d player statistics rows for %d", rows, year)
 	}
 	s.Divisions = tracker.counts()
-	s.Active = nil
-	log.Printf("%d divisions with active players", len(s.Divisions))
+	s.Locations = tracker.locationCounts(s.ActiveLocations)
+	s.Active, s.ActiveLocations = nil, nil
+	log.Printf("%d divisions and %d locations with active players", len(s.Divisions), len(s.Locations))
 
 	if cfg.dryRun {
 		return fmt.Errorf("%w: dry run, nothing written", errSkipped)

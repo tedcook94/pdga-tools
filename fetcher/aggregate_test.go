@@ -2,6 +2,7 @@ package main
 
 import (
 	"maps"
+	"slices"
 	"testing"
 )
 
@@ -115,5 +116,70 @@ func TestSummarizeActiveMap(t *testing.T) {
 	got := summarize(players, date("2026-10-13")).Active
 	if !maps.Equal(got, map[string]int{"1": 900}) {
 		t.Errorf("Active = %v, want only player 1", got)
+	}
+}
+
+func TestLocationKeys(t *testing.T) {
+	tests := []struct {
+		country, state string
+		want           []string
+	}{
+		{"US", "AL", []string{"US", "US-AL"}},
+		{"CA", "ON", []string{"CA", "CA-ON"}},
+		{"JP", "22", []string{"JP"}},
+		{"US", "", []string{"US"}},
+		{"US", "AE", []string{"US"}},
+		{"US", "PR", []string{"PR"}},
+		{"PR", "", []string{"PR"}},
+		{"", "AL", nil},
+	}
+	for _, tt := range tests {
+		got := locationKeys(Player{Country: tt.country, StateProv: tt.state})
+		if !slices.Equal(got, tt.want) {
+			t.Errorf("locationKeys(%q, %q) = %v, want %v", tt.country, tt.state, got, tt.want)
+		}
+	}
+}
+
+func TestLocationCounts(t *testing.T) {
+	d := newDivisionTracker(map[string]int{"1": 900, "2": 950, "3": 800})
+	d.add(PlayerStat{"1", "2026", "MA1"})
+	d.add(PlayerStat{"1", "2026", "MPO"})
+	d.add(PlayerStat{"2", "2026", "MA1"})
+	got := d.locationCounts(map[string][]string{
+		"1": {"US", "US-AL"},
+		"2": {"US", "US-TX"},
+		"3": {"DE"}, // no divisions played
+		"4": {"US"}, // not active
+	})
+
+	us := got["US"]
+	if us.Total != 2 || !maps.Equal(us.Ratings, map[int]int{900: 1, 950: 1}) {
+		t.Errorf("US = %+v", us.Counts)
+	}
+	if us.Divisions["MA1"].Total != 2 || us.Divisions["MPO"].Total != 1 {
+		t.Errorf("US divisions = %+v", us.Divisions)
+	}
+	if al := got["US-AL"]; al.Total != 1 || al.Divisions["MPO"].Ratings[900] != 1 {
+		t.Errorf("US-AL = %+v", al)
+	}
+	if de := got["DE"]; de.Total != 1 || len(de.Divisions) != 0 {
+		t.Errorf("DE = %+v", de)
+	}
+	if len(got) != 4 {
+		t.Errorf("locations = %v, want US, US-AL, US-TX, DE", slices.Sorted(maps.Keys(got)))
+	}
+}
+
+func TestSummarizeActiveLocations(t *testing.T) {
+	p := player("1", new("900"), new("2026-10-13"))
+	p.Country, p.StateProv = "US", "AL"
+	q := player("2", new("900"), new("2026-10-13"))
+	s := summarize(map[string]Player{"1": p, "2": q}, date("2026-10-13"))
+	if !slices.Equal(s.ActiveLocations["1"], []string{"US", "US-AL"}) {
+		t.Errorf("player 1 locations = %v", s.ActiveLocations["1"])
+	}
+	if _, ok := s.ActiveLocations["2"]; ok {
+		t.Error("player without a country has locations")
 	}
 }

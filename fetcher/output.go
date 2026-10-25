@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -21,6 +22,14 @@ type MonthFile struct {
 	PlayersFetched     int               `json:"players_fetched,omitempty"`
 	Ratings            map[int]int       `json:"ratings"`
 	Divisions          map[string]Counts `json:"divisions,omitempty"`
+	Locations          []string          `json:"locations,omitempty"`
+}
+
+type LocationFile struct {
+	Location     string            `json:"location"`
+	TotalPlayers int               `json:"total_players"`
+	Ratings      map[int]int       `json:"ratings"`
+	Divisions    map[string]Counts `json:"divisions,omitempty"`
 }
 
 type Index struct {
@@ -82,6 +91,10 @@ func writeMonth(dir string, update, now time.Time, s Summary) error {
 		PlayersFetched:     s.Fetched,
 		Ratings:            s.Ratings,
 		Divisions:          s.Divisions,
+		Locations:          slices.Sorted(maps.Keys(s.Locations)),
+	}
+	if err := writeLocations(filepath.Join(dir, key), s.Locations); err != nil {
+		return err
 	}
 	if err := writeJSONAtomic(monthPath(dir, key), month); err != nil {
 		return err
@@ -99,6 +112,30 @@ func writeMonth(dir string, update, now time.Time, s Summary) error {
 	return writeJSONAtomic(filepath.Join(dir, "index.json"), idx)
 }
 
+func writeLocations(dir string, locations map[string]LocationCounts) error {
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
+	if len(locations) == 0 {
+		return nil
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	for key, loc := range locations {
+		file := LocationFile{
+			Location:     key,
+			TotalPlayers: loc.Total,
+			Ratings:      loc.Ratings,
+			Divisions:    loc.Divisions,
+		}
+		if err := writeJSONAtomic(filepath.Join(dir, key+".json"), file); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func readJSON(path string, v any) error {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -111,7 +148,7 @@ func readJSON(path string, v any) error {
 }
 
 func writeJSONAtomic(path string, v any) error {
-	b, err := json.MarshalIndent(v, "", "  ")
+	b, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
