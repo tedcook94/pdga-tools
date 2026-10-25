@@ -9,8 +9,7 @@ your PDGA player rating falls in compared to active rated players.
 ## Status
 
 V1 is live at <https://tedcook94.github.io/pdga-tools/>. Data updates
-monthly through the GitHub Action. The first automatic update is expected
-after the November 10, 2026 ratings release.
+monthly through the GitHub Action.
 
 The PDGA approved bulk data use under the API License Agreement.
 
@@ -54,6 +53,19 @@ previous calendar year, so a player in both MA1 and MPO is in both buckets.
 `/player-statistics` has no event dates, so whole years stand in for the
 12-month window; the previous year keeps divisions populated early in the
 year. Every division with at least one active player gets a bucket.
+
+### Locations
+
+Each active player counts in their `country`, and US and Canadian players
+also count in their state or province (keys like `US-AL`, `CA-ON`). Other
+countries' `state_prov` values are inconsistent (numeric in some), so they
+aren't broken out. Location and division combine: each location also holds
+per-division counts for the players in it.
+
+- Players with no `country` count only in the world totals.
+- Military mail codes (`AA`, `AE`, `AP`) count in the US total only.
+- The API files Puerto Rico both as country `PR` and as US state `PR`; both
+  count as the country `PR`.
 
 ## Schedule
 
@@ -135,10 +147,22 @@ home (in `+layout.svelte`). Links use
 
 - A rating input (whole number, 0–1100) and the percentile, which
   updates as you type. Empty or out-of-range input shows a hint instead.
-- Once a rating is entered, the result reads "percentile of all ⌄ players".
-  "all" is an inline picker for a division, grouped Pro, Amateur, Junior,
-  then Other (nonstandard codes). The percentile, curve, and counts follow
-  the selection. Month files without `divisions` show no picker.
+- Once a rating is entered, the result reads "percentile of all ⌄ players
+  in the world ⌄", with two inline pickers (`InlinePicker.svelte`) that
+  combine:
+  - **Division:** grouped Pro, Amateur, Junior, then Other (nonstandard
+    codes). Only divisions with players in the chosen location are listed;
+    one with none resets to "all".
+  - **Location:** "the world", then United States (All, then states),
+    Canada (All, then provinces), then other countries, alphabetical by
+    name. Names come from `Intl.DisplayNames` plus tables for states and
+    provinces.
+  - A location's file loads only when picked; the previous numbers stay on
+    screen until it arrives.
+  - The percentile, curve, and counts follow the selection. Month files
+    without `divisions` or `locations` show plain text instead of a picker.
+- On narrow screens the sentence and hint wrap only between phrases (before
+  "in", after the comma), and the card's padding shrinks to fit more text.
 - A distribution curve of active ratings (plain SVG, smoothed), with
   the area left of your rating shaded and a draggable marker. Dragging,
   tapping, or arrow keys set the rating and update the input. The curve
@@ -172,13 +196,29 @@ home (in `+layout.svelte`). Links use
       "generated_at": "2026-12-09",
       "ratings_update": "2026-12-08",
       "active_window_months": 12,
-      "total_players": 84594,
-      "players_fetched": 312345,
+      "total_players": 84683,
+      "players_fetched": 335133,
       "ratings": { "750": 312, "751": 298 },
       "divisions": {
         "MA1": { "total": 25292, "ratings": { "750": 41, "751": 38 } }
-      }
+      },
+      "locations": ["CA", "CA-ON", "US", "US-AL"]
     }
+
+Each key in `locations` has a file in a directory named after the month,
+e.g. `data/2026-12/US-AL.json`:
+
+    {
+      "location": "US-AL",
+      "total_players": 412,
+      "ratings": { "908": 3 },
+      "divisions": { "MA1": { "total": 120, "ratings": { "908": 1 } } }
+    }
+
+Files are compact JSON. The month file is about 110 KB (30 KB gzipped);
+location files range from under 1 KB to about 95 KB (`US`). The month file
+is written last, so its presence marks a complete month; rerunning a month
+replaces its location directory.
 
 `total_players` is the active count; `players_fetched` is every `/players`
 record, used only for the paging check.
@@ -311,8 +351,8 @@ Requires Node 22+ and pnpm.
 
 ## Roadmap (V2)
 
-- **Location percentiles:** state/province and country come from `/players`,
-  so no extra API calls. Class could be added the same way.
+- **Class percentiles:** `classification` (A or P) comes from `/players`,
+  so it could be added like locations with no extra API calls.
 - **Trends over time:** how the percentile for a given rating changes
   (e.g. 900 was the 60th percentile in 2020 and the 70th now). Past years
   can be backfilled from `/player-statistics?year=...`.
