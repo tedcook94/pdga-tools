@@ -27,15 +27,12 @@ func TestCheckFetched(t *testing.T) {
 	}
 }
 
-func TestWriteMonthAndIndex(t *testing.T) {
+func TestWriteCurrent(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "data")
 	now := date("2026-10-14")
 
-	if exists, err := monthExists(dir, "2026-10"); err != nil || exists {
-		t.Fatalf("monthExists before write = %v, %v", exists, err)
-	}
-	if prev, err := previousFetched(dir); err != nil || prev != 0 {
-		t.Fatalf("previousFetched with no data = %d, %v", prev, err)
+	if cur, err := readCurrent(dir); err != nil || cur.RatingsUpdate != "" || cur.PlayersFetched != 0 {
+		t.Fatalf("readCurrent with no data = %+v, %v", cur, err)
 	}
 
 	s := Summary{
@@ -52,21 +49,28 @@ func TestWriteMonthAndIndex(t *testing.T) {
 		},
 	}
 	// A stale file from an earlier run must not survive the rewrite.
-	if err := os.MkdirAll(filepath.Join(dir, "2026-10"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "current"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "2026-10", "DE.json"), []byte("{}"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "current", "DE.json"), []byte("{}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeMonth(dir, date("2026-10-13"), now, s); err != nil {
+	// An earlier month is replaced, not kept alongside.
+	if err := writeCurrent(dir, date("2026-09-08"), now, Summary{Ratings: map[int]int{}, Total: 7}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeMonth(dir, date("2026-09-08"), now, Summary{Ratings: map[int]int{}, Total: 7}); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "current"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "current", "DE.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeCurrent(dir, date("2026-10-13"), now, s); err != nil {
 		t.Fatal(err)
 	}
 
-	var month MonthFile
-	if err := readJSON(monthPath(dir, "2026-10"), &month); err != nil {
+	month, err := readCurrent(dir)
+	if err != nil {
 		t.Fatal(err)
 	}
 	if month.TotalPlayers != 3 || month.Ratings[900] != 2 || month.RatingsUpdate != "2026-10-13" ||
@@ -79,45 +83,40 @@ func TestWriteMonthAndIndex(t *testing.T) {
 		t.Errorf("month locations = %v", month.Locations)
 	}
 	var al LocationFile
-	if err := readJSON(filepath.Join(dir, "2026-10", "US-AL.json"), &al); err != nil {
+	if err := readJSON(filepath.Join(dir, "current", "US-AL.json"), &al); err != nil {
 		t.Fatal(err)
 	}
 	if al.Location != "US-AL" || al.TotalPlayers != 1 || al.Divisions["MA1"].Ratings[900] != 1 {
 		t.Errorf("US-AL file = %+v", al)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "2026-10", "DE.json")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, "current", "DE.json")); !os.IsNotExist(err) {
 		t.Errorf("stale DE.json still present: %v", err)
 	}
-	if b, _ := os.ReadFile(monthPath(dir, "2026-10")); strings.Contains(string(b), "\n  ") {
+	if b, _ := os.ReadFile(currentPath(dir)); strings.Contains(string(b), "\n  ") {
 		t.Error("month file is indented, want compact JSON")
 	}
 
-	idx, err := readIndex(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !slices.Equal(idx.Months, []string{"2026-09", "2026-10"}) || idx.Latest != "2026-10" {
-		t.Errorf("index = %+v", idx)
-	}
-	if prev, err := previousFetched(dir); err != nil || prev != 10 {
-		t.Errorf("previousFetched = %d, %v; want 10", prev, err)
+	if month.PlayersFetched != 10 {
+		t.Errorf("PlayersFetched = %d, want 10", month.PlayersFetched)
 	}
 
 	entries, _ := os.ReadDir(dir)
+	var names []string
 	for _, e := range entries {
-		if e.Name()[0] == '.' {
-			t.Errorf("leftover temp file %s", e.Name())
-		}
+		names = append(names, e.Name())
+	}
+	if !slices.Equal(names, []string{"current", "current.json"}) {
+		t.Errorf("data dir = %v, want only current and current.json", names)
 	}
 }
 
 func TestRatingsKeysSerializeAsStrings(t *testing.T) {
 	dir := t.TempDir()
 	s := Summary{Ratings: map[int]int{750: 1}, Total: 1}
-	if err := writeMonth(dir, date("2026-10-13"), date("2026-10-13"), s); err != nil {
+	if err := writeCurrent(dir, date("2026-10-13"), date("2026-10-13"), s); err != nil {
 		t.Fatal(err)
 	}
-	b, _ := os.ReadFile(monthPath(dir, "2026-10"))
+	b, _ := os.ReadFile(currentPath(dir))
 	if !strings.Contains(string(b), `"750":1`) {
 		t.Errorf("unexpected output:\n%s", b)
 	}

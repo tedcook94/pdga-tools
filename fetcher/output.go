@@ -32,42 +32,20 @@ type LocationFile struct {
 	Divisions    map[string]Counts `json:"divisions,omitempty"`
 }
 
-type Index struct {
-	Months []string `json:"months"`
-	Latest string   `json:"latest"`
+const currentName = "current"
+
+func currentPath(dir string) string {
+	return filepath.Join(dir, currentName+".json")
 }
 
-func monthPath(dir, key string) string {
-	return filepath.Join(dir, key+".json")
-}
-
-func monthExists(dir, key string) (bool, error) {
-	_, err := os.Stat(monthPath(dir, key))
+// readCurrent returns a zero MonthFile when no snapshot has been written yet.
+func readCurrent(dir string) (MonthFile, error) {
+	var m MonthFile
+	err := readJSON(currentPath(dir), &m)
 	if errors.Is(err, fs.ErrNotExist) {
-		return false, nil
+		return MonthFile{}, nil
 	}
-	return err == nil, err
-}
-
-func readIndex(dir string) (Index, error) {
-	var idx Index
-	err := readJSON(filepath.Join(dir, "index.json"), &idx)
-	if errors.Is(err, fs.ErrNotExist) {
-		return Index{}, nil
-	}
-	return idx, err
-}
-
-func previousFetched(dir string) (int, error) {
-	idx, err := readIndex(dir)
-	if err != nil || idx.Latest == "" {
-		return 0, err
-	}
-	var prev MonthFile
-	if err := readJSON(monthPath(dir, idx.Latest), &prev); err != nil {
-		return 0, err
-	}
-	return prev.PlayersFetched, nil
+	return m, err
 }
 
 func checkFetched(prev, cur int) error {
@@ -78,11 +56,12 @@ func checkFetched(prev, cur int) error {
 		cur, prev-cur, prev)
 }
 
-func writeMonth(dir string, update, now time.Time, s Summary) error {
+// writeCurrent replaces the snapshot. Older months live on in git history and
+// in the yearly files, so they aren't kept on disk.
+func writeCurrent(dir string, update, now time.Time, s Summary) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	key := monthKey(update)
 	month := MonthFile{
 		GeneratedAt:        now.UTC().Format(time.DateOnly),
 		RatingsUpdate:      update.Format(time.DateOnly),
@@ -93,23 +72,11 @@ func writeMonth(dir string, update, now time.Time, s Summary) error {
 		Divisions:          s.Divisions,
 		Locations:          slices.Sorted(maps.Keys(s.Locations)),
 	}
-	if err := writeLocations(filepath.Join(dir, key), s.Locations); err != nil {
+	if err := writeLocations(filepath.Join(dir, currentName), s.Locations); err != nil {
 		return err
 	}
-	if err := writeJSONAtomic(monthPath(dir, key), month); err != nil {
-		return err
-	}
-
-	idx, err := readIndex(dir)
-	if err != nil {
-		return err
-	}
-	if !slices.Contains(idx.Months, key) {
-		idx.Months = append(idx.Months, key)
-	}
-	slices.Sort(idx.Months)
-	idx.Latest = idx.Months[len(idx.Months)-1]
-	return writeJSONAtomic(filepath.Join(dir, "index.json"), idx)
+	// Written last: a current.json with this ratings_update marks the month done.
+	return writeJSONAtomic(currentPath(dir), month)
 }
 
 func writeLocations(dir string, locations map[string]LocationCounts) error {

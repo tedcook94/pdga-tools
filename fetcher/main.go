@@ -63,16 +63,15 @@ func main() {
 
 func run(ctx context.Context, cfg config, now time.Time) error {
 	update, happened := currentUpdate(now)
-	key := monthKey(update)
 	if !happened {
 		return fmt.Errorf("%w: next ratings update is %s", errSkipped, update.Format(time.DateOnly))
 	}
-	exists, err := monthExists(cfg.dataDir, key)
+	current, err := readCurrent(cfg.dataDir)
 	if err != nil {
 		return err
 	}
-	if exists && !cfg.dryRun {
-		return fmt.Errorf("%w: %s already written", errSkipped, key)
+	if current.RatingsUpdate == update.Format(time.DateOnly) && !cfg.dryRun {
+		return fmt.Errorf("%w: %s already written", errSkipped, monthKey(update))
 	}
 
 	if err := loadDotEnv(cfg.envFile); err != nil {
@@ -132,17 +131,13 @@ func run(ctx context.Context, cfg config, now time.Time) error {
 	if cfg.dryRun {
 		return fmt.Errorf("%w: dry run, nothing written", errSkipped)
 	}
-	prev, err := previousFetched(cfg.dataDir)
-	if err != nil {
+	if err := checkFetched(current.PlayersFetched, s.Fetched); err != nil {
 		return err
 	}
-	if err := checkFetched(prev, s.Fetched); err != nil {
+	if err := writeCurrent(cfg.dataDir, update, now, s); err != nil {
 		return err
 	}
-	if err := writeMonth(cfg.dataDir, update, now, s); err != nil {
-		return err
-	}
-	log.Printf("wrote %s", monthPath(cfg.dataDir, key))
+	log.Printf("wrote %s for %s", currentPath(cfg.dataDir), monthKey(update))
 	return nil
 }
 

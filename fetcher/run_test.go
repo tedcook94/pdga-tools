@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -40,15 +41,18 @@ func TestRun(t *testing.T) {
 		if err := run(ctx, cfg, afterUpdate); err != nil {
 			t.Fatal(err)
 		}
-		var month MonthFile
-		if err := readJSON(monthPath(cfg.dataDir, "2026-10"), &month); err != nil {
+		month, err := readCurrent(cfg.dataDir)
+		if err != nil {
 			t.Fatal(err)
+		}
+		if month.RatingsUpdate != "2026-10-13" {
+			t.Errorf("RatingsUpdate = %q", month.RatingsUpdate)
 		}
 		if !slices.Equal(month.Locations, []string{"US", "US-AL"}) {
 			t.Errorf("Locations = %v", month.Locations)
 		}
 		var al LocationFile
-		if err := readJSON(filepath.Join(cfg.dataDir, "2026-10", "US-AL.json"), &al); err != nil {
+		if err := readJSON(filepath.Join(cfg.dataDir, "current", "US-AL.json"), &al); err != nil {
 			t.Fatal(err)
 		}
 		if al.TotalPlayers != 450 || al.Divisions["MPO"].Total != 150 {
@@ -78,7 +82,7 @@ func TestRun(t *testing.T) {
 		if err := run(ctx, cfg, afterUpdate); !errors.Is(err, errSkipped) {
 			t.Fatalf("err = %v, want skipped", err)
 		}
-		if exists, _ := monthExists(cfg.dataDir, "2026-10"); exists {
+		if _, err := os.Stat(currentPath(cfg.dataDir)); !os.IsNotExist(err) {
 			t.Error("dry run wrote a file")
 		}
 	})
@@ -101,12 +105,27 @@ func TestRun(t *testing.T) {
 	t.Run("large drop in fetched records fails", func(t *testing.T) {
 		cfg := testConfig(t, 450)
 		prev := Summary{Ratings: map[int]int{900: 1000}, Total: 1000, Fetched: 1000}
-		if err := writeMonth(cfg.dataDir, date("2026-09-08"), afterUpdate, prev); err != nil {
+		if err := writeCurrent(cfg.dataDir, date("2026-09-08"), afterUpdate, prev); err != nil {
 			t.Fatal(err)
 		}
 		err := run(ctx, cfg, afterUpdate)
 		if err == nil || errors.Is(err, errSkipped) {
 			t.Fatalf("err = %v, want failure", err)
+		}
+	})
+
+	t.Run("new month replaces the previous snapshot", func(t *testing.T) {
+		cfg := testConfig(t, 450)
+		prev := Summary{Ratings: map[int]int{900: 450}, Total: 450, Fetched: 450}
+		if err := writeCurrent(cfg.dataDir, date("2026-09-08"), afterUpdate, prev); err != nil {
+			t.Fatal(err)
+		}
+		if err := run(ctx, cfg, afterUpdate); err != nil {
+			t.Fatal(err)
+		}
+		month, err := readCurrent(cfg.dataDir)
+		if err != nil || month.RatingsUpdate != "2026-10-13" {
+			t.Errorf("current = %q, %v; want 2026-10-13", month.RatingsUpdate, err)
 		}
 	})
 

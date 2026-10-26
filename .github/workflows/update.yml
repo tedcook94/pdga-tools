@@ -62,7 +62,7 @@ jobs:
               git config user.name 'github-actions[bot]'
               git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
               git add data
-              git commit -m "add ratings data for $(jq -r .latest data/index.json)"
+              git commit -m "add ratings data for $(jq -r '.ratings_update[:7]' data/current.json)"
               git push
               echo "updated=true" >> "$GITHUB_OUTPUT"
               echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
