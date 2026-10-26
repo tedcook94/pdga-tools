@@ -112,8 +112,14 @@ func (f *fakePDGA) statsRows(year string) []map[string]any {
 	return append(rows, statRow(f.total+1, year, "FPO"))
 }
 
+// statRow gives player n a rating of 800 + n%5, the same across divisions.
 func statRow(n int, year, division string) map[string]any {
-	return map[string]any{"pdga_number": strconv.Itoa(n), "year": year, "division_code": division}
+	return map[string]any{
+		"pdga_number":   strconv.Itoa(n),
+		"year":          year,
+		"division_code": division,
+		"rating":        strconv.Itoa(800 + n%5),
+	}
 }
 
 func (f *fakePDGA) writeStatsPage(w http.ResponseWriter, r *http.Request) {
@@ -144,7 +150,8 @@ func TestFetchPlayerStatistics(t *testing.T) {
 	if rows != 376 || len(seen) != 376 {
 		t.Errorf("rows = %d, seen = %d, want 376", rows, len(seen))
 	}
-	if seen[0] != (PlayerStat{PDGANumber: "1", Year: "2026", DivisionCode: "MA1"}) {
+	if first := seen[0]; first.PDGANumber != "1" || first.Year != "2026" || first.DivisionCode != "MA1" ||
+		first.Rating == nil || *first.Rating != "801" {
 		t.Errorf("first row = %+v", seen[0])
 	}
 	if got := f.statsCalls.Load(); got != 3 {

@@ -33,9 +33,10 @@ func locationKeys(p Player) []string {
 }
 
 type PlayerStat struct {
-	PDGANumber   string `json:"pdga_number"`
-	Year         string `json:"year"`
-	DivisionCode string `json:"division_code"`
+	PDGANumber   string  `json:"pdga_number"`
+	Year         string  `json:"year"`
+	DivisionCode string  `json:"division_code"`
+	Rating       *string `json:"rating"`
 }
 
 type Counts struct {

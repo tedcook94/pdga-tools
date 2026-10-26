@@ -70,6 +70,18 @@ func TestRun(t *testing.T) {
 			month.Divisions["MPO"].Total != 150 || month.Divisions["MPO"].Ratings[900] != 150 {
 			t.Errorf("Divisions = %+v", month.Divisions)
 		}
+		// History counts everyone with a row, active or not, once per year:
+		// 2025 has the odd players plus the extra FPO player; 2026 adds the
+		// multiples of 3, some of whom played both MA1 and MPO.
+		for year, want := range map[int]int{2025: 226, 2026: 301} {
+			var h HistoryFile
+			if err := readJSON(historyPath(cfg.dataDir, year), &h); err != nil {
+				t.Fatal(err)
+			}
+			if h.Year != year || h.TotalPlayers != want {
+				t.Errorf("history %d = year %d, total %d; want %d", year, h.Year, h.TotalPlayers, want)
+			}
+		}
 		if err := run(ctx, cfg, afterUpdate.Add(24*time.Hour)); !errors.Is(err, errSkipped) {
 			t.Errorf("second run err = %v, want skipped", err)
 		}
@@ -135,6 +147,56 @@ func TestRun(t *testing.T) {
 		err := run(ctx, cfg, afterUpdate)
 		if err == nil || errors.Is(err, errSkipped) {
 			t.Fatalf("err = %v, want failure", err)
+		}
+	})
+}
+
+func TestBackfill(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 10, 25, 0, 0, 0, 0, time.UTC)
+
+	t.Run("writes missing years and skips existing", func(t *testing.T) {
+		cfg := testConfig(t, 450)
+		cfg.backfill = "2025-2026"
+		existing := Counts{Total: 1, Ratings: map[int]int{700: 1}}
+		if _, err := writeHistory(cfg.dataDir, 2026, now, existing); err != nil {
+			t.Fatal(err)
+		}
+		if err := backfill(ctx, cfg, now); err != nil {
+			t.Fatal(err)
+		}
+		var h HistoryFile
+		if err := readJSON(historyPath(cfg.dataDir, 2025), &h); err != nil || h.TotalPlayers != 226 {
+			t.Errorf("2025 = %+v, %v; want 226 players", h, err)
+		}
+		if err := readJSON(historyPath(cfg.dataDir, 2026), &h); err != nil || h.TotalPlayers != 1 {
+			t.Errorf("2026 = %+v, %v; want the existing file kept", h, err)
+		}
+		if _, err := os.Stat(currentPath(cfg.dataDir)); !os.IsNotExist(err) {
+			t.Error("backfill wrote current.json")
+		}
+		if err := backfill(ctx, cfg, now); !errors.Is(err, errSkipped) {
+			t.Errorf("second backfill err = %v, want skipped", err)
+		}
+	})
+
+	t.Run("dry run writes nothing", func(t *testing.T) {
+		cfg := testConfig(t, 450)
+		cfg.backfill = "2025"
+		cfg.dryRun = true
+		if err := backfill(ctx, cfg, now); !errors.Is(err, errSkipped) {
+			t.Fatalf("err = %v, want skipped", err)
+		}
+		if exists, _ := historyExists(cfg.dataDir, 2025); exists {
+			t.Error("dry run wrote history")
+		}
+	})
+
+	t.Run("bad range fails", func(t *testing.T) {
+		cfg := testConfig(t, 10)
+		cfg.backfill = "2024-2000"
+		if err := backfill(ctx, cfg, now); err == nil || errors.Is(err, errSkipped) {
+			t.Errorf("err = %v, want failure", err)
 		}
 	})
 }

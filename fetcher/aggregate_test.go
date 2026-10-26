@@ -84,13 +84,13 @@ func TestDivisionCounts(t *testing.T) {
 	active := map[string]int{"1": 900, "2": 950, "3": 900}
 	d := newDivisionTracker(active)
 	for _, row := range []PlayerStat{
-		{"1", "2025", "MA1"},
-		{"1", "2026", "MA1"}, // same division in both years counts once
-		{"1", "2026", "MPO"}, // second division counts too
-		{"2", "2026", "MPO"},
-		{"3", "2025", "MA1"},
-		{"4", "2026", "MA1"}, // not active
-		{"2", "2026", ""},    // missing code
+		{"1", "2025", "MA1", nil},
+		{"1", "2026", "MA1", nil}, // same division in both years counts once
+		{"1", "2026", "MPO", nil}, // second division counts too
+		{"2", "2026", "MPO", nil},
+		{"3", "2025", "MA1", nil},
+		{"4", "2026", "MA1", nil}, // not active
+		{"2", "2026", "", nil},    // missing code
 	} {
 		d.add(row)
 	}
@@ -143,9 +143,9 @@ func TestLocationKeys(t *testing.T) {
 
 func TestLocationCounts(t *testing.T) {
 	d := newDivisionTracker(map[string]int{"1": 900, "2": 950, "3": 800})
-	d.add(PlayerStat{"1", "2026", "MA1"})
-	d.add(PlayerStat{"1", "2026", "MPO"})
-	d.add(PlayerStat{"2", "2026", "MA1"})
+	d.add(PlayerStat{"1", "2026", "MA1", nil})
+	d.add(PlayerStat{"1", "2026", "MPO", nil})
+	d.add(PlayerStat{"2", "2026", "MA1", nil})
 	got := d.locationCounts(map[string][]string{
 		"1": {"US", "US-AL"},
 		"2": {"US", "US-TX"},
