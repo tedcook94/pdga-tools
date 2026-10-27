@@ -67,8 +67,10 @@ export function percentile(ratings: Record<string, number>, rating: number): Res
 	};
 }
 
+// Percentiles display with one decimal, so the suffix follows the rounded
+// value: 62.96 shows as "63.0" and needs "rd", not "nd".
 export function ordinal(n: number): string {
-	const whole = Math.floor(n);
+	const whole = Math.floor(Number(n.toFixed(1)));
 	const lastTwo = whole % 100;
 	if (lastTwo >= 11 && lastTwo <= 13) return 'th';
 	return ['th', 'st', 'nd', 'rd'][whole % 10] ?? 'th';

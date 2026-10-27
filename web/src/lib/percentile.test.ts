@@ -43,4 +43,10 @@ describe('ordinal', () => {
 			'st', 'nd', 'rd', 'th', 'th', 'th', 'th', 'st', 'nd', 'th', 'th', 'th', 'th'
 		]);
 	});
+
+	it('follows the value as displayed with one decimal', () => {
+		expect([62.96, 11.96, 21.04, 20.96, 99.96].map(ordinal)).toEqual([
+			'rd', 'th', 'st', 'st', 'th'
+		]);
+	});
 });
