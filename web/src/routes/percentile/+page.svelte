@@ -1,11 +1,14 @@
 <script lang="ts">
 	import DistributionCurve from '#lib/DistributionCurve.svelte';
+	import HistoryTrend from '#lib/HistoryTrend.svelte';
 	import InlinePicker from '#lib/InlinePicker.svelte';
-	import { loadLocation } from '#lib/data.ts';
+	import { loadHistory, loadLocation } from '#lib/data.ts';
+	import { historyPoints } from '#lib/history.ts';
 	import { groupDivisions } from '#lib/divisions.ts';
 	import { groupLocations, locationName } from '#lib/locations.ts';
 	import {
 		type Counts,
+		type HistoryFile,
 		type LocationFile,
 		MAX_RATING,
 		MIN_RATING,
@@ -75,7 +78,7 @@
 			return;
 		}
 		let current = true;
-		loadLocation(data.monthKey, key)
+		loadLocation(key)
 			.then((file) => {
 				if (current) place = file;
 			})
@@ -121,6 +124,23 @@
 	const result = $derived(rating == null ? null : percentile(selected.ratings, rating));
 
 	// Phrases rather than one string, so a narrow card wraps between them.
+	// History loads on the first valid rating, so the empty page stays light.
+	let history = $state<HistoryFile[] | null>(null);
+	let historyRequested = false;
+	$effect(() => {
+		if (result == null || historyRequested) return;
+		historyRequested = true;
+		loadHistory()
+			.then((files) => (history = files))
+			.catch(() => (history = []));
+	});
+	// Depends on the rating only, so changing a filter doesn't reset the
+	// picked year.
+	const trend = $derived(
+		history && rating != null && isValidRating(rating) ? historyPoints(history, rating) : []
+	);
+	const filtered = $derived(division !== ALL || location !== WORLD);
+
 	const hint = $derived.by((): string[] => {
 		if (rating == null)
 			return [`Enter a rating from ${MIN_RATING} to ${MAX_RATING},`, 'or drag the curve.'];
@@ -239,6 +259,16 @@
 			</dl>
 		{/if}
 	</section>
+
+	{#if result && trend.length > 1}
+		<section class="card history">
+			<h2>{rating} over the years <span>· all players worldwide</span></h2>
+			{#if filtered}
+				<p class="note">Division and location filters don't apply to history.</p>
+			{/if}
+			<HistoryTrend points={trend} />
+		</section>
+	{/if}
 
 	<div class="meta">
 		<p>Ratings as of {updateDate}</p>
@@ -368,6 +398,26 @@
 		.card {
 			padding-inline: var(--size-3);
 		}
+	}
+
+	.history {
+		gap: var(--size-3);
+	}
+
+	h2 {
+		max-inline-size: none;
+		font-size: var(--font-size-3);
+		color: var(--text-1);
+	}
+
+	h2 span {
+		font-weight: var(--font-weight-4);
+		color: var(--text-2);
+	}
+
+	.note {
+		font-size: var(--font-size-0);
+		color: var(--text-2);
 	}
 
 	.stats {

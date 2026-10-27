@@ -24,6 +24,14 @@ export interface LocationFile {
 	divisions?: Record<string, Counts>;
 }
 
+/** One calendar year: each player's last rating update of that year. */
+export interface HistoryFile {
+	year: number;
+	generated_at: string;
+	total_players: number;
+	ratings: Record<string, number>;
+}
+
 export interface Result {
 	percentile: number;
 	below: number;

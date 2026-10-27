@@ -1,32 +1,29 @@
 import { error } from '@sveltejs/kit';
-import type { LocationFile, MonthFile } from '#lib/percentile.ts';
+import type { HistoryFile, LocationFile, MonthFile } from '#lib/percentile.ts';
 
 // Bundled at build time from the fetcher's output in the repo root. Paths are
 // relative to this file, so routes can move without breaking them.
-const index = import.meta.glob<{ latest: string }>('../../../data/index.json', { import: 'default' });
-const months = import.meta.glob<MonthFile>('../../../data/????-??.json', { import: 'default' });
-// Each location becomes its own chunk, downloaded only when picked.
-const locations = import.meta.glob<LocationFile>('../../../data/????-??/*.json', {
+const current = import.meta.glob<MonthFile>('../../../data/current.json', { import: 'default' });
+// Each location and year becomes its own chunk, downloaded only when needed.
+const locations = import.meta.glob<LocationFile>('../../../data/current/*.json', {
 	import: 'default'
 });
+const years = import.meta.glob<HistoryFile>('../../../data/history/*.json', { import: 'default' });
 
-export interface LatestMonth {
-	key: string;
-	month: MonthFile;
-}
-
-export async function loadLatestMonth(): Promise<LatestMonth> {
-	const loadIndex = index['../../../data/index.json'];
-	if (!loadIndex) error(500, 'data/index.json not found; run the fetcher first');
-	const { latest } = await loadIndex();
-
-	const loadMonth = months[`../../../data/${latest}.json`];
-	if (!loadMonth) error(500, `data/${latest}.json not found`);
-	return { key: latest, month: await loadMonth() };
-}
-
-export async function loadLocation(month: string, location: string): Promise<LocationFile> {
-	const load = locations[`../../../data/${month}/${location}.json`];
-	if (!load) throw new Error(`data/${month}/${location}.json not found`);
+export async function loadCurrent(): Promise<MonthFile> {
+	const load = current['../../../data/current.json'];
+	if (!load) error(500, 'data/current.json not found; run the fetcher first');
 	return load();
+}
+
+export async function loadLocation(location: string): Promise<LocationFile> {
+	const load = locations[`../../../data/current/${location}.json`];
+	if (!load) throw new Error(`data/current/${location}.json not found`);
+	return load();
+}
+
+/** All yearly history files, oldest first. */
+export async function loadHistory(): Promise<HistoryFile[]> {
+	const files = await Promise.all(Object.values(years).map((load) => load()));
+	return files.sort((a, b) => a.year - b.year);
 }
