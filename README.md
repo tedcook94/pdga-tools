@@ -27,8 +27,10 @@ The PDGA approved bulk data use under the API License Agreement.
 5. It outputs **aggregate counts only**: the number of players at each rating,
    overall and per division. No names or PDGA numbers are written to disk or
    published.
-6. Each month's aggregates are saved as a new file in `data/`, building a
-   history for trend views.
+6. The aggregates replace `data/current.json` and `data/current/`. The same
+   `/player-statistics` rows also rewrite the current and previous year's
+   files in `data/history/` (see [Rating history](#rating-history)). Past
+   months live on in git history.
 7. `data/` is copied into the static SvelteKit build on GitHub Pages. The
    site loads the JSON, and the user's browser computes their percentile
    from the rating they enter.
@@ -67,6 +69,26 @@ per-division counts for the players in it.
 - The API files Puerto Rico both as country `PR` and as US state `PR`; both
   count as the country `PR`.
 
+### Rating history
+
+`data/history/YYYY.json` holds one calendar year from 2000 on. A player
+counts in a year if they have a `/player-statistics` row for it with a
+nonzero rating, once per year (they have a row per division, all with the
+same rating). That rating is their last rating update of the year, or their
+current rating for the current year; spot checks against pdga.com rating
+histories matched.
+
+- Years before 2025 were written once with `-backfill`. The monthly run
+  rewrites the current and previous year, so the previous year becomes final
+  after January's update.
+- This rule differs slightly from [active players](#active-players), so the
+  current year can be a few tenths of a point off the main curve (82,131 vs.
+  84,683 players in October 2026).
+- A fixed rating can rank lower in every early year at once, because the
+  whole field was rated higher: the median was about 910 through 2010 and
+  about 880 from 2020. 900 was the 42nd percentile in 2010 and the 63rd in
+  2026.
+
 ## Schedule
 
 PDGA publishes ratings on the second Tuesday of each month
@@ -77,7 +99,7 @@ PDGA publishes ratings on the second Tuesday of each month
   Running daily also gives Healthchecks.io a steady signal.
 - **Each run, the fetcher:**
   1. Skips if today is before this month's second Tuesday.
-  2. Skips if this month's file already exists.
+  2. Skips if `current.json` already has this month's `ratings_update`.
   3. Pulls `/players`.
   4. Skips without writing if no player has a `rating_effective_date` on or
      after this month's second Tuesday. Ratings aren't out yet, so the next
@@ -87,15 +109,15 @@ PDGA publishes ratings on the second Tuesday of each month
   6. Fails without writing if it fetched more than 500 fewer `/players`
      records than last month. That count includes expired members, so it
      should only grow; a drop means paging stopped early.
-- Output files are named after the ratings update month (e.g. `2026-10.json`),
-  not the run date.
+  7. Writes the current and previous year's history, then `current.json`
+     last, so a failed write is retried the next day.
 
 ### Exit codes
 
 | Code | Meaning |
 |------|---------|
 | `0`  | New month written |
-| `3`  | Skipped (not time yet, file exists, or ratings not out) |
+| `3`  | Skipped (not time yet, already written, ratings not out, or nothing new to backfill) |
 | other | Failure |
 
 `go run` reports any non-zero exit as `1`, so the workflow builds the fetcher
@@ -169,6 +191,13 @@ home (in `+layout.svelte`). Links use
   shows before any rating is entered. Smaller divisions get wider smoothing
   (about ±10 ratings for all players, up to ±50 for a handful), and the
   axis spans at least 200 ratings.
+- Once a rating is entered, a second card shows "900 over the years · all
+  players worldwide": a line chart of that rating's percentile in each year
+  from `data/history/` (`HistoryTrend.svelte`). Hovering, tapping, or arrow
+  keys pick a year, which stays picked until another is chosen (Home/End
+  jump to the ends); a new rating resets it to the latest year. History is
+  worldwide only; when a division or location is picked, the card says those
+  filters don't apply. The history files load on the first valid rating.
 - Shows which ratings update the data is from.
 - Styles live in each component's `<style>` block, built on
   [Open Props](https://open-props.style) variables. Shared pieces (theme
@@ -180,17 +209,18 @@ home (in `+layout.svelte`). Links use
 
     fetcher/     Go module: API client, aggregation, JSON output
     web/         SvelteKit app
-    data/        Monthly aggregate files and index
+    data/        Current snapshot, its location files, and yearly history
     .github/     Workflow: fetch → build → deploy to Pages
     bruno/       Bruno collection for manual API exploration
 
 ## Data format
 
-`data/index.json` lists the available months:
+    data/
+      current.json          latest monthly snapshot
+      current/US-AL.json    one file per location in the snapshot
+      history/2000.json     one file per calendar year
 
-    { "months": ["2026-11", "2026-12"], "latest": "2026-12" }
-
-`data/2026-12.json` holds one month of aggregates:
+`data/current.json` holds the latest month's aggregates:
 
     {
       "generated_at": "2026-12-09",
@@ -205,8 +235,8 @@ home (in `+layout.svelte`). Links use
       "locations": ["CA", "CA-ON", "US", "US-AL"]
     }
 
-Each key in `locations` has a file in a directory named after the month,
-e.g. `data/2026-12/US-AL.json`:
+Each key in `locations` has a file in `data/current/`, e.g.
+`data/current/US-AL.json`:
 
     {
       "location": "US-AL",
@@ -215,10 +245,20 @@ e.g. `data/2026-12/US-AL.json`:
       "divisions": { "MA1": { "total": 120, "ratings": { "908": 1 } } }
     }
 
-Files are compact JSON. The month file is about 110 KB (30 KB gzipped);
-location files range from under 1 KB to about 95 KB (`US`). The month file
-is written last, so its presence marks a complete month; rerunning a month
-replaces its location directory.
+`data/history/2026.json` holds one year:
+
+    {
+      "year": 2026,
+      "generated_at": "2026-10-25",
+      "total_players": 82131,
+      "ratings": { "750": 290, "751": 301 }
+    }
+
+Files are compact JSON. `current.json` is about 110 KB (30 KB gzipped);
+location files range from under 1 KB to about 95 KB (`US`); history files
+total about 175 KB. `current.json` is written last, and each write replaces
+`current/` so no stale locations remain. Years with no rated players (early
+January) get no history file.
 
 `total_players` is the active count; `players_fetched` is every `/players`
 record, used only for the paging check.
@@ -317,18 +357,25 @@ A full pull takes about 80 minutes and logs progress about once a minute.
 | `-progress` | `50` | Log progress every N pages (`0` = off) |
 | `-dry-run` | `false` | Fetch and summarize without writing files |
 | `-max-pages` | `0` | Stop after N pages per pass (`0` = all); implies `-dry-run` |
+| `-backfill` | | Write history for a range like `2000-2024` instead of the monthly run; skips years already written |
 
 Quick check that credentials and both endpoints work (about 11 requests,
 writes nothing):
 
     go -C fetcher run . -data ../data -env ../.env -max-pages 3
 
+Backfill history (only `/player-statistics`; leaves `current.json` alone).
+2000–2026 took about 2 hours; rerunning skips years already written:
+
+    go -C fetcher run . -data ../data -env ../.env -backfill 2000-2026
+
 Run tests with `go -C fetcher test ./...`.
 
 ### Web
 
 The site reads `data/` at build time (`web/src/lib/data.ts`), so rebuild
-after each fetch to pick up a new month.
+after each fetch to pick up a new month. Location and history files are
+separate chunks, downloaded only when needed.
 
     pnpm -C web dev      # dev server
     pnpm -C web test     # Vitest
@@ -353,9 +400,9 @@ Requires Node 22+ and pnpm.
 
 - **Class percentiles:** `classification` (A or P) comes from `/players`,
   so it could be added like locations with no extra API calls.
-- **Trends over time:** how the percentile for a given rating changes
-  (e.g. 900 was the 60th percentile in 2020 and the 70th now). Past years
-  can be backfilled from `/player-statistics?year=...`.
+- **History by division or location:** the trend is worldwide only. Per-year
+  division and location counts would need country and division per row
+  (available in `/player-statistics`) and a rerun of the backfill.
 - **Profile lookup and tournament search:** these need live API calls, so
   they go through a Cloudflare Worker. The Worker is a separate on-demand
   deployment (similar to AWS Lambda) that holds the PDGA credentials as
