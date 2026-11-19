@@ -1,13 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { loadFixture } from './fixtures.test-helper';
 import { parseDate, parseDateRange, parseRatingsPage, type RatingsPage } from './ratings-page';
-
-function loadFixture(name: string): RatingsPage {
-	// Vitest runs from the package root; import.meta.url isn't a file URL under happy-dom.
-	const html = readFileSync(join(process.cwd(), 'fixtures', name), 'utf8');
-	return parseRatingsPage(new DOMParser().parseFromString(html, 'text/html'));
-}
 
 function parseHtml(html: string): RatingsPage {
 	return parseRatingsPage(new DOMParser().parseFromString(html, 'text/html'));
@@ -130,9 +123,27 @@ describe('parseRatingsPage row details', () => {
 			round: '1',
 			score: 63,
 			rating: 930,
+			holes: 18,
 			evaluated: true,
 			included: true
 		});
+	});
+
+	it("reads each round's hole count from its layout tooltip", () => {
+		const event6 = loadFixture('rating-911.html').rounds.filter((r) => r.eventId === 6);
+		expect(event6.map((r) => r.holes)).toEqual([21, 21]);
+	});
+
+	it('assumes 18 holes when a round has no layout tooltip', () => {
+		const doc = new DOMParser().parseFromString(
+			`<table id="player-results-details"><tbody><tr class="evaluated">
+				<td class="tournament"><a href="/tour/event/1">Event 1</a></td>
+				<td class="date">17-Oct-2026</td><td class="round">1</td>
+				<td class="round-rating">930</td><td class="evaluated">Yes</td>
+			</tr></tbody></table>`,
+			'text/html'
+		);
+		expect(parseRatingsPage(doc).rounds[0]!.holes).toBe(18);
 	});
 
 	it('dates a league by its range', () => {

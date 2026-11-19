@@ -13,6 +13,8 @@ export interface PageRound {
 	round: string;
 	score: number | null;
 	rating: number;
+	/** Holes in the round's layout; the rating weights rounds by holes ÷ 18. */
+	holes: number;
 	/** Considered for the current rating (inside the rating window). */
 	evaluated: boolean;
 	/** Counted in the current rating (evaluated and not dropped as an outlier). */
@@ -85,7 +87,20 @@ function cellText(row: Element, name: string): string {
 	return row.querySelector(`td.${name}`)?.textContent?.trim() ?? '';
 }
 
-function parseRound(row: Element): PageRound | null {
+const STANDARD_HOLES = 18;
+
+// Layout tooltips ("Course - Layout; 18 holes; Par 54; ...") sit outside the
+// table, keyed by the id each round cell points to.
+function layoutHoles(doc: ParentNode): Map<string, number> {
+	const holes = new Map<string, number>();
+	for (const layout of doc.querySelectorAll('[id^="layout-details-"]')) {
+		const count = layout.textContent?.match(/(\d+) holes/)?.[1];
+		if (count) holes.set(layout.id, Number(count));
+	}
+	return holes;
+}
+
+function parseRound(row: Element, holesById: Map<string, number>): PageRound | null {
 	const dates = parseDateRange(cellText(row, 'date'));
 	const rating = Number.parseInt(cellText(row, 'round-rating'), 10);
 	if (!dates || Number.isNaN(rating)) return null;
@@ -93,6 +108,10 @@ function parseRound(row: Element): PageRound | null {
 	const href = row.querySelector('td.tournament a')?.getAttribute('href') ?? '';
 	const eventId = href.match(/\/tour\/event\/(\d+)/)?.[1];
 	const score = Number.parseInt(cellText(row, 'score'), 10);
+	const layoutId = row
+		.querySelector('td.round')
+		?.getAttribute('data-tooltip-content')
+		?.replace(/^#/, '');
 
 	return {
 		eventId: eventId ? Number(eventId) : null,
@@ -104,6 +123,7 @@ function parseRound(row: Element): PageRound | null {
 		round: cellText(row, 'round'),
 		score: Number.isNaN(score) ? null : score,
 		rating,
+		holes: (layoutId && holesById.get(layoutId)) || STANDARD_HOLES,
 		evaluated: cellText(row, 'evaluated') === 'Yes',
 		included: cellText(row, 'included') === 'Yes'
 	};
@@ -123,9 +143,11 @@ export function parseRatingsPage(doc: ParentNode): RatingsPage {
 		'#player-results-details tbody tr.evaluated, #player-results-details tbody tr.not-evaluated'
 	);
 
+	const holesById = layoutHoles(doc);
+
 	return {
 		rating: rating ? Number(rating) : null,
 		ratingDate: ratingDate ? parseDate(ratingDate) : null,
-		rounds: [...rows].flatMap((row) => parseRound(row) ?? [])
+		rounds: [...rows].flatMap((row) => parseRound(row, holesById) ?? [])
 	};
 }

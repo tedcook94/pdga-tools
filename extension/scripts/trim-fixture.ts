@@ -42,6 +42,17 @@ const table = extract(/<table id="player-results-details"[\s\S]*?<\/table>/, 'ra
 	)
 	.replace(/layout-details-(\d+)-/g, (_, id: string) => `layout-details-${anonymousId(id)}-`);
 
+// The rating weights rounds by hole count. Course and layout names would
+// locate the player, so each tooltip keeps only its hole count.
+const layouts = [...html.matchAll(/<div id="layout-details-(\d+)-([^"]+)"><div>(.*?)<\/div>/g)]
+	.map(([, id, rest, details]) => {
+		const holes = details!.match(/(\d+) holes/)?.[1];
+		if (!holes) return '';
+		return `<div id="layout-details-${anonymousId(id!)}-${rest}"><div>${holes} holes</div></div>`;
+	})
+	.filter(Boolean)
+	.join('\n');
+
 writeFileSync(
 	output,
 	`<!doctype html>
@@ -49,6 +60,9 @@ writeFileSync(
 <body>
 <ul class="player-info info-list">${ratingLine}</ul>
 <div class="table-container">${table}</div>
+<div class="tooltip-templates">
+${layouts}
+</div>
 </body>
 </html>
 `
