@@ -1,0 +1,35 @@
+name: extension
+
+on:
+  push:
+    branches: [main]
+    paths: [extension/**, .github/workflows/extension.yml]
+  pull_request:
+    paths: [extension/**, .github/workflows/extension.yml]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: extension/package.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: extension/pnpm-lock.yaml
+
+      - run: pnpm -C extension install --frozen-lockfile
+      - run: pnpm -C extension test
+      - run: pnpm -C extension check
+      - run: pnpm -C extension build
