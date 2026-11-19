@@ -77,6 +77,28 @@ describe('validateEvent', () => {
 		expect(validateEvent(tournament([]))).toEqual(['Add at least one round.']);
 	});
 
+	it('accepts skipped round numbers', () => {
+		const rounds = [
+			{ id: '1', date: '2026-10-03', rating: 900, number: 1 },
+			{ id: '2', date: '2026-10-17', rating: 900, number: 3 }
+		];
+		expect(validateEvent(tournament(rounds))).toEqual([]);
+	});
+
+	it('rejects repeated round numbers', () => {
+		const rounds = [
+			{ id: '1', date: '2026-10-03', rating: 900, number: 2 },
+			{ id: '2', date: '2026-10-17', rating: 900 }
+		];
+		expect(validateEvent(tournament(rounds))).toEqual(['Round numbers must be different.']);
+	});
+
+	it.each([0, 1.5])('rejects round number %s', (number) => {
+		expect(
+			validateEvent(tournament([{ id: '1', date: '2026-11-13', rating: 868, number }]))
+		).toEqual(['Round numbers must be whole numbers above 0.']);
+	});
+
 	it.each([0, 18.5])('rejects %s holes', (holes) => {
 		expect(
 			validateEvent(tournament([{ id: '1', date: '2026-11-13', rating: 868, holes }]))

@@ -7,6 +7,8 @@ export interface AddedRound {
 	rating: number | null;
 	/** Holes in the layout. Defaults to 18. */
 	holes?: number;
+	/** The event's own round number, which skips missed weeks. Defaults to the position. */
+	number?: number;
 }
 
 /** A tournament or league the player added by hand. */
@@ -61,5 +63,17 @@ export function validateEvent(event: AddedEvent): string[] {
 		({ holes }) => holes !== undefined && (!Number.isInteger(holes) || holes < 1)
 	);
 	if (badHoles) problems.push('Hole counts must be whole numbers above 0.');
+
+	const numbers = event.rounds.map(roundNumber);
+	if (numbers.some((number) => !Number.isInteger(number) || number < 1)) {
+		problems.push('Round numbers must be whole numbers above 0.');
+	} else if (new Set(numbers).size < numbers.length) {
+		problems.push('Round numbers must be different.');
+	}
 	return problems;
+}
+
+/** The round's number as shown: its own, or its position in the event. */
+export function roundNumber(round: AddedRound, index: number): number {
+	return round.number ?? index + 1;
 }
