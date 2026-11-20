@@ -3,6 +3,9 @@
 Small tools built on PDGA player data, deployed to GitHub Pages at
 <https://tedcook94.github.io/pdga-tools/>. The first tool finds what percentile
 your PDGA player rating falls in compared to active rated players.
+The second, Rating Projector, is a browser extension that projects your next
+rating updates on your pdga.com ratings detail page (see
+[Extension](#extension)).
 
 > Player, event, and course data provided by [PDGA](https://www.pdga.com).
 
@@ -160,6 +163,7 @@ repository activity. The monthly data commit should prevent that, and
 |-------|------|
 | `/` | Home: list of tools |
 | `/percentile` | Rating percentile |
+| `/rating` | Rating Projector extension: features, store links, privacy |
 
 Every page has a sticky header bar with a "PDGA Tools" wordmark that links
 home (in `+layout.svelte`). Links use
@@ -388,6 +392,68 @@ Set `BASE_PATH` for a build served under a subpath, as on GitHub Pages:
 
 Requires Node 22+ and pnpm.
 
+## Extension
+
+`extension/` is Rating Projector for PDGA, a Chrome and Firefox extension
+(Manifest V3, WXT, Svelte 5). It adds a panel above the table on
+`pdga.com/player/<number>/details` where players add tournaments and leagues
+they've played since the last update, and shows the projected rating for each
+upcoming update with the rounds added, dropped, counted twice and aged out.
+
+It reads only the page that's open: PDGA's terms ban scrapers, and the API
+has no round history. Added events are saved in `storage.sync`, one item per
+event, falling back to `storage.local` when sync fails. The only permission
+is `storage`.
+
+### Rating rules
+
+`extension/src/lib/rating.ts` recreates PDGA's method from the ratings guide
+plus posts by the PDGA ratings team on the archived forum
+([t-22332](https://www.pdga.com/files/discussion/archive/t-22332.html),
+[t-24143](https://www.pdga.com/files/discussion/archive/t-24143.html),
+[t-26808](https://www.pdga.com/files/discussion/archive/t-26808.html),
+[t-28825](https://www.pdga.com/files/discussion/archive/t-28825.html)):
+
+1. **Window:** rounds within 12 months of the latest round, or 24 months
+   with fewer than 8.
+2. **Outliers:** with 7 or more rounds, one pass drops rounds below the
+   higher of average − 100 and average − 2.5 standard deviations (population,
+   leaving out the lowest round).
+3. **Doubling:** with 9 or more rounds, the newest quarter (rounded down) of
+   used rounds count twice. If that splits an event, its best rounds count.
+4. **Average:** rounds weigh holes ÷ 18, and each rating gets +0.5 because
+   published round ratings are truncated.
+
+League rounds on the page show only the league's dates, so round N is placed
+N − 1 weeks after the start. Projections move PDGA's published rating by the
+change in our calculation, which cancels most of the remaining error. Checked
+against 34 saved pages: 30 exact, the rest within 1.
+
+Ratings updates are calculated, not hard-coded: the second Tuesday of each
+month, including rounds through the Sunday before.
+
+### Commands
+
+    pnpm -C extension dev          # Firefox with the extension loaded
+    pnpm -C extension dev:chrome   # same in Chrome
+    pnpm -C extension test         # Vitest
+    pnpm -C extension check        # svelte-check
+    pnpm -C extension build        # .output/chrome-mv3 and firefox-mv3
+    pnpm -C extension zip          # store zips, plus the Firefox source zip
+    pnpm -C extension icons        # regenerate public/icon/*.png from assets/icon.svg (needs rsvg-convert)
+
+In Firefox, the extension may need "Always allow on www.pdga.com" under its
+site permissions before the panel appears.
+
+### Fixtures
+
+Tests run against saved ratings detail pages in `extension/fixtures/`,
+anonymized by `scripts/trim-fixture.ts`: names and PDGA numbers are removed,
+events are renamed "Event N", and layout tooltips keep only the hole count.
+Never commit an untrimmed page.
+
+    node extension/scripts/trim-fixture.ts <saved page.html> extension/fixtures/rating-<rating>.html
+
 ## License compliance
 
 - Show the attribution line and a link to pdga.com on every page.
@@ -408,15 +474,6 @@ Requires Node 22+ and pnpm.
   deployment (similar to AWS Lambda) that holds the PDGA credentials as
   secrets and allows CORS only from the Pages domain. The static site
   calls the Worker, never the PDGA API directly.
-- **Rating calculator:** estimate a player's rating after the next update.
-  Players manually add new rounds that aren't in their rating yet, and the
-  calculator applies PDGA's published method: rounds from the 12 months
-  before the most recent round (looking back up to 24 months if there are
-  fewer than 8), double weight on the most recent 25% once there are 9 or
-  more rounds, and dropping low outliers. Supports leagues with extra rules
-  for when their rounds count. Needs a source for existing round history
-  (not in `/players` or `/player-statistics`), and testing against real
-  updates to match PDGA's results.
 - **Head-to-head comparison:** enter two PDGA numbers and see every event
   both played, with their head-to-head record. Open questions: what counts as
   "against each other" (same division, or the same layout/round regardless

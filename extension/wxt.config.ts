@@ -4,6 +4,7 @@ export default defineConfig({
 	srcDir: 'src',
 	modules: ['@wxt-dev/module-svelte'],
 	manifestVersion: 3,
+	zip: { name: 'rating-projector' },
 	manifest: ({ browser }) => ({
 		name: 'Rating Projector for PDGA',
 		description:

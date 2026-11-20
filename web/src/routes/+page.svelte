@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import TrendIcon from '#lib/TrendIcon.svelte';
 </script>
 
 <svelte:head>
@@ -32,6 +33,15 @@
 				<span class="text">
 					<h2>Rating Percentile</h2>
 					<p>Compare your rating to other active players</p>
+				</span>
+			</a>
+		</li>
+		<li>
+			<a class="card" href={resolve('/rating')}>
+				<span class="icon"><TrendIcon /></span>
+				<span class="text">
+					<h2>Rating Projector</h2>
+					<p>Browser extension that projects your next ratings on pdga.com</p>
 				</span>
 			</a>
 		</li>
