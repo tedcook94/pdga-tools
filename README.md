@@ -440,10 +440,25 @@ month, including rounds through the Sunday before.
     pnpm -C extension check        # svelte-check
     pnpm -C extension build        # .output/chrome-mv3 and firefox-mv3
     pnpm -C extension zip          # store zips, plus the Firefox source zip
-    pnpm -C extension icons        # regenerate public/icon/*.png from assets/icon.svg (needs rsvg-convert)
+    pnpm -C extension icons        # regenerate icons and the promo tile from assets/*.svg (needs rsvg-convert)
 
 In Firefox, the extension may need "Always allow on www.pdga.com" under its
 site permissions before the panel appears.
+
+### Releasing
+
+1. Bump `version` in `extension/package.json`. Both stores reject a version
+   they've already seen.
+2. Commit, then tag and push: `git tag extension-v<version> && git push origin extension-v<version>`.
+3. `extension-release.yml` tests, builds and attaches the Chrome, Firefox
+   and source zips to a GitHub release. It fails if the tag and version
+   differ.
+4. Upload the zips from the release:
+   - **Chrome Web Store:** the Chrome zip. Listing images are in
+     `extension/store/` (1280×800 screenshots, 440×280 promo tile).
+   - **Firefox Add-ons:** the Firefox zip, plus the source zip when asked
+     about bundlers. Build notes for reviewers: Node 24 and pnpm, then
+     `pnpm install --frozen-lockfile && pnpm zip` in `extension/`.
 
 ### Fixtures
 
