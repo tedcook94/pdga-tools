@@ -2,11 +2,16 @@
 	import { asset } from '$app/paths';
 	import TrendIcon from '#lib/TrendIcon.svelte';
 
-	// TODO: set once the store listings are published; until then the buttons
-	// say "coming soon" instead of linking nowhere.
+	// A null url shows "coming soon" instead of linking nowhere.
 	const stores: { name: string; url: string | null }[] = [
-		{ name: 'Chrome', url: null },
-		{ name: 'Firefox', url: null }
+		{
+			name: 'Chrome',
+			url: 'https://chromewebstore.google.com/detail/rating-projector-for-pdga/cjciholkdnnklckjmkmkfoepeolbclnm'
+		},
+		{
+			name: 'Firefox',
+			url: 'https://addons.mozilla.org/firefox/addon/rating-projector-for-pdga/'
+		}
 	];
 
 	// Store copies of this and two more, padded to 1280×800, are in extension/store/.
