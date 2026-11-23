@@ -10,11 +10,20 @@ on:
   pull_request:
     paths: [extension/**, '!extension/**/*.md', .github/workflows/extension.yml]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Submit this existing release (e.g. extension-v0.2.0) instead of testing
+        type: string
+      dry_run:
+        description: Only check store credentials
+        type: boolean
+        default: true
 
 permissions: {}
 
 jobs:
   test:
+    if: github.event_name != 'workflow_dispatch' || inputs.tag == ''
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -23,7 +32,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Check tag matches package.json version
-        if: startsWith(github.ref, 'refs/tags/extension-v')
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/extension-v')
         run: |
           version=$(jq -r .version extension/package.json)
           if [ "$GITHUB_REF_NAME" != "extension-v$version" ]; then
@@ -47,7 +56,7 @@ jobs:
       - run: pnpm -C extension zip
 
       - uses: actions/upload-artifact@v7
-        if: startsWith(github.ref, 'refs/tags/extension-v')
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/extension-v')
         with:
           name: zips
           path: extension/.output/*.zip
@@ -55,7 +64,7 @@ jobs:
 
   release:
     needs: test
-    if: startsWith(github.ref, 'refs/tags/extension-v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/extension-v')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -74,3 +83,68 @@ jobs:
             --title "Rating Projector ${GITHUB_REF_NAME#extension-v}" \
             --generate-notes \
             *.zip
+
+  submit:
+    needs: release
+    # After a new release, or a manual run naming an existing one.
+    if: >-
+      always() &&
+      (needs.release.result == 'success' ||
+      (github.event_name == 'workflow_dispatch' && inputs.tag != ''))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Holds the store secrets; add a required reviewer to approve each submission.
+    environment: stores
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: Check tag
+        run: |
+          if ! [[ "$TAG" =~ ^extension-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Not an extension release tag: $TAG"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: extension/package.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: extension/pnpm-lock.yaml
+
+      - run: pnpm -C extension install --frozen-lockfile
+
+      # Submits the zips attached to the release, so the stores get exactly what passed the tests.
+      - name: Download release zips
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "$TAG" --pattern '*.zip' --dir "$RUNNER_TEMP/zips"
+
+      - name: Submit to stores
+        env:
+          SUBMIT_DRY_RUN: ${{ inputs.dry_run }}
+          CHROME_API_VERSION: v2
+          CHROME_EXTENSION_ID: cjciholkdnnklckjmkmkfoepeolbclnm
+          CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
+          CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL: ${{ secrets.CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL }}
+          CHROME_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.CHROME_SERVICE_ACCOUNT_PRIVATE_KEY }}
+          FIREFOX_EXTENSION_ID: rating-projector@pdga-tools
+          FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+          FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
+        run: |
+          zips="$RUNNER_TEMP/zips"
+          flags=()
+          if [ "$SUBMIT_DRY_RUN" = true ]; then flags+=(--dry-run); fi
+          pnpm -C extension exec wxt submit "${flags[@]}" \
+            --chrome-zip "$(echo "$zips"/*-chrome.zip)" \
+            --firefox-zip "$(echo "$zips"/*-firefox.zip)" \
+            --firefox-sources-zip "$(echo "$zips"/*-sources.zip)"

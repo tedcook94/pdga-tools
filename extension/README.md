@@ -61,18 +61,46 @@ site permissions before the panel appears.
 
 ## Releasing
 
-1. Bump `version` in `extension/package.json`. Both stores reject a version
+1. If the listing text or screenshots changed, update them by hand in both
+   store dashboards first; the upload APIs can't change listings. Listing
+   images are in `extension/store/` (1280×800 screenshots, 440×280 promo
+   tile).
+2. Bump `version` in `extension/package.json`. Both stores reject a version
    they've already seen.
-2. Commit, then tag and push: `git tag extension-v<version> && git push origin extension-v<version>`.
-3. `.github/workflows/extension.yml` tests and zips the extension, then
-   attaches the Chrome, Firefox and source zips to a GitHub release. It stops
-   before releasing if a test fails or the tag and version differ.
-4. Upload the zips from the release:
-   - **Chrome Web Store:** the Chrome zip. Listing images are in
-     `extension/store/` (1280×800 screenshots, 440×280 promo tile).
-   - **Firefox Add-ons:** the Firefox zip, plus the source zip when asked
-     about bundlers. Build notes for reviewers: Node 24 and pnpm, then
-     `pnpm install --frozen-lockfile && pnpm zip` in `extension/`.
+3. Commit, then tag and push: `git tag extension-v<version> && git push origin extension-v<version>`.
+4. `.github/workflows/extension.yml` runs three jobs:
+   - `test` tests and zips the extension. It fails if the tag and version
+     differ.
+   - `release` attaches the Chrome, Firefox and source zips to a GitHub
+     release.
+   - `submit` waits for approval in the `stores` environment, then uploads
+     those zips and submits them for review. Each store publishes once its
+     review passes.
+
+Each job runs only if the one before it passed. To submit a release again, or
+to check credentials, run the workflow by hand with the release's tag; it
+skips `test` and `release`, and **Only check store credentials** is on by
+default.
+
+Firefox reviewers rebuild from the source zip: Node 24 and pnpm, then
+`pnpm install --frozen-lockfile && pnpm zip` in `extension/`.
+
+### Store credentials
+
+The `stores` environment (Settings → Environments) holds these secrets. Add
+yourself as a required reviewer so each submission waits for approval.
+
+| Secret | From |
+|--------|------|
+| `CHROME_PUBLISHER_ID` | Chrome Web Store developer dashboard → Account |
+| `CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL` | A Google Cloud service account with the Chrome Web Store API enabled, added in the dashboard under Account → Service accounts |
+| `CHROME_SERVICE_ACCOUNT_PRIVATE_KEY` | That service account's JSON key, the `private_key` field |
+| `FIREFOX_JWT_ISSUER` | addons.mozilla.org → Developer Hub → Manage API Keys |
+| `FIREFOX_JWT_SECRET` | Same page |
+
+The extension IDs are in the workflow. To try credentials locally, put the
+same names in `extension/.env.submit` (ignored by git) and run
+`pnpm exec wxt submit --dry-run` with the zip flags.
 
 ## Fixtures
 
