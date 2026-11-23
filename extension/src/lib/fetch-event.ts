@@ -1,4 +1,9 @@
-import { parseEventPage, parseEventRounds, type EventPage, type EventPageRound } from './event-page';
+import {
+	parseEventPage,
+	parseEventRounds,
+	type EventPage,
+	type EventPageRound
+} from './event-page';
 
 export type FetchEventResult =
 	| { ok: true; page: EventPage; rounds: EventPageRound[] }
@@ -42,7 +47,11 @@ export async function fetchEvent(
 	}
 
 	// Parsed documents are inert: their scripts don't run and nothing loads.
-	const doc = new DOMParser().parseFromString(html, 'text/html');
+	return readEvent(new DOMParser().parseFromString(html, 'text/html'), player);
+}
+
+/** Reads a player's rated rounds from an event page, fetched or open. */
+export function readEvent(doc: ParentNode, player: string): FetchEventResult {
 	const page = parseEventPage(doc);
 	if (!page) return { ok: false, error: "That page doesn't look like a PDGA event page." };
 

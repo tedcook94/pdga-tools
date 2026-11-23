@@ -58,8 +58,8 @@
 		<h2>What it does</h2>
 		<ul>
 			<li>
-				<strong>Import an event from its ID or link,</strong> including PDGA Live links, and
-				refresh it as more league weeks are rated.
+				<strong>Import an event from its ID or link,</strong> including PDGA Live links, or with
+				one click on its event page. Refresh it as more league weeks are rated.
 			</li>
 			<li>
 				<strong>Or add tournaments and leagues by hand,</strong> then add, renumber or delete

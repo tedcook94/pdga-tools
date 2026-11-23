@@ -2,6 +2,12 @@ import { browser } from 'wxt/browser';
 import { storage } from 'wxt/utils/storage';
 import type { AddedEvent } from './events';
 
+/** The event ID in an event page URL such as /tour/event/108060. */
+export function pdgaEventIdFromPath(pathname: string): number | null {
+	const id = pathname.match(/^\/tour\/event\/([1-9]\d{0,8})\/?$/)?.[1];
+	return id ? Number(id) : null;
+}
+
 /** The PDGA number in a ratings detail URL such as /player/12345/details. */
 export function pdgaNumber(pathname: string): string | null {
 	return pathname.match(/^\/player\/(\d+)\/details\/?$/)?.[1] ?? null;
@@ -101,6 +107,19 @@ export function eventStore(player: string) {
 	}
 
 	return { load, save, watch };
+}
+
+/** PDGA numbers with events saved in this browser, synced or on this device only. */
+export async function savedPlayers(): Promise<string[]> {
+	const [synced, local] = await Promise.all([
+		browser.storage.sync.get(null),
+		browser.storage.local.get(null)
+	]);
+	const players = [
+		...Object.keys(synced).flatMap((key) => key.match(/^player:(\d+)$/)?.[1] ?? []),
+		...Object.keys(local).flatMap((key) => key.match(/^events:(\d+)$/)?.[1] ?? [])
+	];
+	return [...new Set(players)];
 }
 
 // Shared by every player: it's a preference about the page, not the player.

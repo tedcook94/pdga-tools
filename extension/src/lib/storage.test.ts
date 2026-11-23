@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import type { AddedEvent } from './events';
-import { eventStore, loadCollapsed, pdgaNumber, saveCollapsed } from './storage';
+import {
+	eventStore,
+	loadCollapsed,
+	pdgaEventIdFromPath,
+	pdgaNumber,
+	saveCollapsed,
+	savedPlayers
+} from './storage';
 
 describe('pdgaNumber', () => {
 	it('reads the number from a ratings detail path', () => {
@@ -12,6 +19,19 @@ describe('pdgaNumber', () => {
 	it('rejects other paths', () => {
 		expect(pdgaNumber('/player/12345')).toBeNull();
 		expect(pdgaNumber('/player/abc/details')).toBeNull();
+	});
+});
+
+describe('pdgaEventIdFromPath', () => {
+	it('reads the ID from an event page path', () => {
+		expect(pdgaEventIdFromPath('/tour/event/108060')).toBe(108060);
+		expect(pdgaEventIdFromPath('/tour/event/108060/')).toBe(108060);
+	});
+
+	it('rejects other paths', () => {
+		expect(pdgaEventIdFromPath('/tour/event/108060/edit')).toBeNull();
+		expect(pdgaEventIdFromPath('/tour/event/0')).toBeNull();
+		expect(pdgaEventIdFromPath('/live/event/108060')).toBeNull();
 	});
 });
 
@@ -153,5 +173,20 @@ describe('collapsed preference', () => {
 		await saveCollapsed(true);
 		expect(await loadCollapsed()).toBe(true);
 		expect(await fakeBrowser.storage.sync.get('panelCollapsed')).toEqual({ panelCollapsed: true });
+	});
+});
+
+describe('savedPlayers', () => {
+	beforeEach(() => fakeBrowser.reset());
+
+	it('lists players with synced or device-only events, once each', async () => {
+		await fakeBrowser.storage.sync.set({
+			'player:1': [],
+			'player:22': ['a'],
+			'event:a': event('a'),
+			panelCollapsed: true
+		});
+		await fakeBrowser.storage.local.set({ 'events:22': [], 'events:333': [] });
+		expect((await savedPlayers()).sort()).toEqual(['1', '22', '333']);
 	});
 });

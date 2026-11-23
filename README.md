@@ -405,6 +405,8 @@ imports or refreshes an event: PDGA's terms ban scrapers, so nothing is
 fetched in the background, and the API has no round history. An import takes
 an event ID, event page link or PDGA Live link, always requests
 `www.pdga.com/tour/event/<id>` and reads only that player's results row.
+Event pages also get an import icon in a column after PDGA# on each player's
+results row. It reads the open page itself, so it fetches nothing.
 Importing an event again replaces the earlier import.
 
 Added events are saved in `storage.sync`, one item per event, falling back to
@@ -488,21 +490,12 @@ only one player's results row.
   retry per day until the update is published.
 - Delete the data within 24 hours if PDGA asks.
 
-## Roadmap (V2)
+## Roadmap
 
 - **Class percentiles:** `classification` (A or P) comes from `/players`,
   so it could be added like locations with no extra API calls.
-- **History by division or location:** the trend is worldwide only. Per-year
-  division and location counts would need country and division per row
-  (available in `/player-statistics`) and a rerun of the backfill.
-- **Profile lookup and tournament search:** these need live API calls, so
-  they go through a Cloudflare Worker. The Worker is a separate on-demand
-  deployment (similar to AWS Lambda) that holds the PDGA credentials as
-  secrets and allows CORS only from the Pages domain. The static site
-  calls the Worker, never the PDGA API directly.
 - **Head-to-head comparison:** enter two PDGA numbers and see every event
   both played, with their head-to-head record. Open questions: what counts as
   "against each other" (same division, or the same layout/round regardless
   of division), and which endpoint provides per-player event results. Needs
-  live API calls, so it goes through the Cloudflare Worker like profile
-  lookup. Needs research.
+  live API calls, so it goes through a Cloudflare Worker. Needs research.
