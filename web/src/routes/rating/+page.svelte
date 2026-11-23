@@ -48,9 +48,9 @@
 	<a class="screenshot" href={screenshot}>
 		<img
 			src={screenshot}
-			alt="The panel on a ratings detail page: the next update with added, dropped and aged-out rounds, above a tournament with three rounds."
+			alt="The panel on a ratings detail page: the next update with added, dropped and aged-out rounds, the import box, and an imported tournament with four rounds."
 			width="1280"
-			height="636"
+			height="635"
 		/>
 	</a>
 

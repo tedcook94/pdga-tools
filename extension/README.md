@@ -55,6 +55,7 @@ month, including rounds through the Sunday before.
     pnpm -C extension build        # .output/chrome-mv3 and firefox-mv3
     pnpm -C extension zip          # store zips, plus the Firefox source zip
     pnpm -C extension icons        # regenerate icons and the promo tile from assets/*.svg (needs rsvg-convert)
+    pnpm -C extension screenshots ~/shots   # store screenshots and the /rating image from raw 1.png … 5.png (needs magick)
 
 In Firefox, the extension may need "Always allow on www.pdga.com" under its
 site permissions before the panel appears.

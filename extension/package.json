@@ -11,6 +11,7 @@
 		"build": "wxt build && wxt build -b firefox",
 		"zip": "wxt zip && wxt zip -b firefox",
 		"icons": "for size in 16 32 48 128; do rsvg-convert -w $size -h $size assets/icon.svg -o public/icon/$size.png; done && rsvg-convert -w 440 -h 280 assets/promo-tile.svg -o store/promo-tile-440x280.png",
+		"screenshots": "scripts/store-screenshots.sh",
 		"postinstall": "wxt prepare",
 		"check": "wxt prepare && svelte-check --tsconfig ./tsconfig.json",
 		"test:unit": "vitest",
