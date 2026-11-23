@@ -47,7 +47,7 @@ and [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/rating-projector-
 | Job | Runs on | Does |
 |-----|---------|------|
 | `fetch` | Schedule, manual dispatch | Runs the fetcher, pings Healthchecks, commits and pushes `data/` on exit `0` |
-| `build` | Push to `main`, manual dispatch, schedule with new data | Tests, checks, and builds with `BASE_PATH=/pdga-tools` |
+| `build` | Push to `main` that changes `web/` (not docs) or `data/`, manual dispatch, schedule with new data | Tests, checks, and builds with `BASE_PATH=/pdga-tools` |
 | `deploy` | After `build` | Publishes to GitHub Pages |
 
 Build and deploy run in the same workflow as the fetch because pushes made

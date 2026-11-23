@@ -6,6 +6,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    # Docs don't change the build.
+    paths: [web/**, '!web/**/*.md', data/**, .github/workflows/update.yml]
 
 # One run at a time, and never cancel a run mid-deploy or mid-commit.
 concurrency:
