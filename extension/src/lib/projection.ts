@@ -1,7 +1,7 @@
 import { eventDate, validateEvent, type AddedEvent, type AddedRound } from './events';
 import { calculateRating, type RatingResult } from './rating';
 import type { PageRound, RatingsPage } from './ratings-page';
-import { addDays, updateFor, updateOn, type RatingsUpdate } from './schedule';
+import { leagueRoundDate, updateFor, updateOn, type RatingsUpdate } from './schedule';
 
 /** A round from the ratings detail table, dated by `pageRoundDate`. */
 export interface PageCalcRound {
@@ -81,18 +81,15 @@ const LEAGUE_TIER = 'L';
 
 /**
  * The date a page round was played, which decides doubling and aging out.
- * League rounds show only the league's date range, so round N is estimated at
- * N − 1 weeks after the start, capped at the end. Round numbers are the
- * league's own, so missed rounds don't shift the estimate; skipped weeks make
- * it early. Rounds like "Finals" keep the end date.
+ * League rounds show only the league's date range, so theirs are estimated.
+ * Rounds like "Finals" keep the end date.
  */
 export function pageRoundDate(round: PageRound): string {
 	const number = Number(round.round);
 	if (round.tier !== LEAGUE_TIER || !Number.isInteger(number) || number < 1) {
 		return round.endDate;
 	}
-	const estimate = addDays(round.startDate, (number - 1) * 7);
-	return estimate < round.endDate ? estimate : round.endDate;
+	return leagueRoundDate(round.startDate, round.endDate, number);
 }
 
 /** Groups page rounds by event; the name and dates stand in when a row has no event link. */

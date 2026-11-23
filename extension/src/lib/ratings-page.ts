@@ -83,15 +83,19 @@ export function parseDateRange(text: string): { start: string; end: string } | n
 	return { start: isoDate(year, month, Number(match[1])), end };
 }
 
-function cellText(row: Element, name: string): string {
+/** The trimmed text of a row's cell with the given class, empty if missing. */
+export function cellText(row: Element, name: string): string {
 	return row.querySelector(`td.${name}`)?.textContent?.trim() ?? '';
 }
 
-const STANDARD_HOLES = 18;
+/** Holes assumed for a round whose layout isn't listed. */
+export const STANDARD_HOLES = 18;
 
-// Layout tooltips ("Course - Layout; 18 holes; Par 54; ...") sit outside the
-// table, keyed by the id each round cell points to.
-function layoutHoles(doc: ParentNode): Map<string, number> {
+/**
+ * Hole counts by layout tooltip id. The tooltips ("Course - Layout; 18 holes;
+ * Par 54; ...") sit outside the table, and round cells point to them by id.
+ */
+export function layoutHoles(doc: ParentNode): Map<string, number> {
 	const holes = new Map<string, number>();
 	for (const layout of doc.querySelectorAll('[id^="layout-details-"]')) {
 		const count = layout.textContent?.match(/(\d+) holes/)?.[1];

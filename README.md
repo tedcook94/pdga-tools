@@ -469,6 +469,11 @@ Never commit an untrimmed page.
 
     node extension/scripts/trim-fixture.ts <saved page.html> extension/fixtures/rating-<rating>.html
 
+Event page fixtures come from `scripts/trim-event-fixture.ts`, which also keeps
+only one player's results row.
+
+    node extension/scripts/trim-event-fixture.ts <saved page.html> <PDGA number> extension/fixtures/event-<name>.html
+
 ## License compliance
 
 - Show the attribution line and a link to pdga.com on every page.

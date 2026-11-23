@@ -57,3 +57,13 @@ export function updateOn(date: string): RatingsUpdate | null {
 	const update = ratingsUpdate(year, month);
 	return update.date === date ? update : null;
 }
+
+/**
+ * Estimates when a league round was played: N − 1 weeks after the start,
+ * capped at the end. Round numbers are the league's own, so missed rounds
+ * don't shift the estimate; skipped weeks make it early.
+ */
+export function leagueRoundDate(start: string, end: string, round: number): string {
+	const estimate = addDays(start, (round - 1) * 7);
+	return estimate < end ? estimate : end;
+}
