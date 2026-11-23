@@ -4,7 +4,11 @@ export default defineConfig({
 	srcDir: 'src',
 	modules: ['@wxt-dev/module-svelte'],
 	manifestVersion: 3,
-	zip: { name: 'rating-projector' },
+	zip: {
+		name: 'rating-projector',
+		// Firefox reviewers only need what builds the extension.
+		excludeSources: ['store/**', 'fixtures/**', 'scripts/**', 'src/**/*.test-helper.ts']
+	},
 	manifest: ({ browser }) => ({
 		name: 'Rating Projector for PDGA',
 		description:
