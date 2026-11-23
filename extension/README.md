@@ -64,9 +64,9 @@ site permissions before the panel appears.
 1. Bump `version` in `extension/package.json`. Both stores reject a version
    they've already seen.
 2. Commit, then tag and push: `git tag extension-v<version> && git push origin extension-v<version>`.
-3. `extension-release.yml` tests, builds and attaches the Chrome, Firefox
-   and source zips to a GitHub release. It fails if the tag and version
-   differ.
+3. `.github/workflows/extension.yml` tests and zips the extension, then
+   attaches the Chrome, Firefox and source zips to a GitHub release. It stops
+   before releasing if a test fails or the tag and version differ.
 4. Upload the zips from the release:
    - **Chrome Web Store:** the Chrome zip. Listing images are in
      `extension/store/` (1280×800 screenshots, 440×280 promo tile).

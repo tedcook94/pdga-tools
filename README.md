@@ -60,9 +60,9 @@ The fetch job's timeout is 120 minutes for a pull of about 80.
 
 Pages must be set to deploy from GitHub Actions (Settings → Pages → Source).
 
-The extension has its own workflows: `extension.yml` tests and builds it on
-changes, and `extension-release.yml` builds the store zips for a release (see
-[Releasing](extension/README.md#releasing)).
+The extension has its own workflow, `extension.yml`: it tests and zips the
+extension on changes, and on an `extension-v*` tag also attaches the zips to a
+GitHub release (see [Releasing](extension/README.md#releasing)).
 
 ## License compliance
 
