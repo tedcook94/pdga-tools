@@ -172,4 +172,36 @@ describe('Panel', () => {
 		expect(lastSaved()!.map((e) => e.id)).toEqual(['shuffle']);
 		expect(document.querySelector('.counted')).toBeNull();
 	});
+
+	it('shows changes from other tabs without saving them back', () => {
+		let push: ((result: { events: AddedEvent[]; localOnly: boolean }) => void) | undefined;
+		const stop = vi.fn();
+		const onchange = vi.fn<(events: AddedEvent[]) => void>();
+		panel = mount(Panel, {
+			target: document.body,
+			props: {
+				page,
+				initialEvents: [],
+				onchange,
+				watch: (callback) => {
+					push = callback;
+					return stop;
+				}
+			}
+		});
+		flushSync();
+		expect(onchange).not.toHaveBeenCalled();
+
+		push!({ events: [shuffle()], localOnly: false });
+		flushSync();
+		expect(field('Tournament name').value).toBe('Shuffle');
+		expect(onchange).not.toHaveBeenCalled();
+
+		type('Tournament name', 'Shuffle 2026');
+		expect(onchange.mock.lastCall?.[0][0]).toMatchObject({ name: 'Shuffle 2026' });
+
+		unmount(panel);
+		panel = undefined;
+		expect(stop).toHaveBeenCalled();
+	});
 });

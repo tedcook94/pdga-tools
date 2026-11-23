@@ -3,7 +3,7 @@
 	import type { AddedEvent, EventKind } from '@/lib/events';
 	import { project } from '@/lib/projection';
 	import type { RatingsPage } from '@/lib/ratings-page';
-	import type { SaveResult } from '@/lib/storage';
+	import type { LoadResult, SaveResult } from '@/lib/storage';
 	import EventEditor from './EventEditor.svelte';
 	import Timeline from './Timeline.svelte';
 
@@ -16,6 +16,8 @@
 		initialLocalOnly?: boolean;
 		onchange: (events: AddedEvent[]) => void | Promise<SaveResult>;
 		oncollapse?: (collapsed: boolean) => void;
+		/** Subscribes to changes made in other tabs or devices; returns an unsubscribe. */
+		watch?: (onchange: (result: LoadResult) => void) => () => void;
 	}
 
 	let {
@@ -24,7 +26,8 @@
 		initialCollapsed = false,
 		initialLocalOnly = false,
 		onchange,
-		oncollapse
+		oncollapse,
+		watch
 	}: Props = $props();
 
 	// The panel owns its state from here on; later prop changes are ignored.
@@ -42,13 +45,24 @@
 	);
 	const counted = $derived(new Set(projection.counted.map((event) => event.id)));
 
-	let saved = false;
+	// What storage already holds, so loaded or watched events aren't written back.
+	// svelte-ignore state_referenced_locally
+	let stored = JSON.stringify(initialEvents);
 	$effect(() => {
 		const snapshot = $state.snapshot(events);
-		// Skip the first run, which would just write back what was loaded.
-		if (saved) void save(snapshot);
-		saved = true;
+		const json = JSON.stringify(snapshot);
+		if (json === stored) return;
+		stored = json;
+		void save(snapshot);
 	});
+
+	$effect(() =>
+		watch?.((result) => {
+			stored = JSON.stringify(result.events);
+			events = result.events;
+			localOnly = result.localOnly;
+		})
+	);
 
 	async function save(snapshot: AddedEvent[]) {
 		const result = await onchange(snapshot);

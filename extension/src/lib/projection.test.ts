@@ -110,6 +110,16 @@ describe('project', () => {
 		expect(projection.updates).toEqual([]);
 	});
 
+	it('leaves out imported events the page already lists, whatever their dates', () => {
+		const eventId = page.rounds[0]!.eventId!;
+		const imported = { ...counted, rounds: [{ id: 'i1', date: '2026-12-01', rating: 999 }] };
+		const listed = { ...imported, id: 'listed', pdgaEventId: eventId };
+		const unlisted = { ...imported, id: 'unlisted', pdgaEventId: 999999 };
+		const projection = project(page, [listed, unlisted]);
+		expect(projection.counted).toEqual([listed]);
+		expect(projection.updates[0]!.added.map((round) => round.event)).toEqual([unlisted]);
+	});
+
 	it('reports invalid events without projecting them', () => {
 		const noEnd = { ...league, endDate: null };
 		const projection = project(page, [noEnd]);

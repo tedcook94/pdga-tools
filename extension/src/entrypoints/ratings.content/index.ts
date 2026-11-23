@@ -31,6 +31,7 @@ export default defineContentScript({
 						initialCollapsed,
 						initialLocalOnly: saved.localOnly,
 						onchange: store.save,
+						watch: store.watch,
 						oncollapse: (collapsed) => void saveCollapsed(collapsed)
 					}
 				}),

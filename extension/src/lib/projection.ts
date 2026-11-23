@@ -105,6 +105,7 @@ export function project(page: RatingsPage, events: readonly AddedEvent[]): Proje
 	const base = pageCalcRounds(page);
 	const baseline = calculateRating<CalcRound>(base);
 
+	const pageEventIds = new Set(page.rounds.map((round) => round.eventId));
 	const counted: AddedEvent[] = [];
 	const invalid: Projection['invalid'] = [];
 	const pending: { update: RatingsUpdate; rounds: AddedCalcRound[] }[] = [];
@@ -116,7 +117,8 @@ export function project(page: RatingsPage, events: readonly AddedEvent[]): Proje
 			invalid.push({ event, problems });
 			continue;
 		}
-		if (current && date <= current.cutoff) {
+		const onPage = event.pdgaEventId !== undefined && pageEventIds.has(event.pdgaEventId);
+		if (onPage || (current && date <= current.cutoff)) {
 			counted.push(event);
 			continue;
 		}

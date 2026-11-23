@@ -89,6 +89,62 @@ describe('eventStore', () => {
 	});
 });
 
+describe('eventStore watch', () => {
+	beforeEach(() => fakeBrowser.reset());
+
+	async function watched(player = '1') {
+		const store = eventStore(player);
+		await store.load();
+		const onchange = vi.fn();
+		const stop = store.watch(onchange);
+		return { store, onchange, stop };
+	}
+
+	// Listeners run after the write resolves, and the reload is queued after that.
+	const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+	it('reloads when another store adds an event', async () => {
+		const { onchange } = await watched();
+		const other = eventStore('1');
+		await other.load();
+		await other.save([event('a')]);
+		await settle();
+		expect(onchange).toHaveBeenLastCalledWith({ events: [event('a')], localOnly: false });
+	});
+
+	it('reloads when another store edits an event', async () => {
+		const { store, onchange } = await watched();
+		await store.save([event('a')]);
+		await fakeBrowser.storage.sync.set({ 'event:a': event('a', 990) });
+		await settle();
+		expect(onchange).toHaveBeenLastCalledWith({ events: [event('a', 990)], localOnly: false });
+	});
+
+	it('ignores its own saves', async () => {
+		const { store, onchange } = await watched();
+		await store.save([event('a')]);
+		await store.save([event('a', 990)]);
+		await store.save([]);
+		await settle();
+		expect(onchange).not.toHaveBeenCalled();
+	});
+
+	it("ignores other players' events and stops when asked", async () => {
+		const { onchange, stop } = await watched('1');
+		const other = eventStore('2');
+		await other.load();
+		await other.save([event('b')]);
+		await fakeBrowser.storage.sync.set({ 'event:b': event('b', 990), panelCollapsed: true });
+		await settle();
+		expect(onchange).not.toHaveBeenCalled();
+
+		stop();
+		await fakeBrowser.storage.sync.set({ 'player:1': ['b'] });
+		await settle();
+		expect(onchange).not.toHaveBeenCalled();
+	});
+});
+
 describe('collapsed preference', () => {
 	beforeEach(() => fakeBrowser.reset());
 

@@ -19,6 +19,8 @@ export interface AddedEvent {
 	/** Required for leagues, which report every round when the league ends. Unused for tournaments. */
 	endDate: string | null;
 	rounds: AddedRound[];
+	/** The PDGA event it was imported from. Unset for events entered by hand. */
+	pdgaEventId?: number;
 }
 
 export const MIN_RATING = 0;
