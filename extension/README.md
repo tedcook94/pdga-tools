@@ -63,9 +63,9 @@ site permissions before the panel appears.
 ## Releasing
 
 1. If the listing text or screenshots changed, update them by hand in both
-   store dashboards first; the upload APIs can't change listings. Listing
-   images are in `extension/store/` (1280×800 screenshots, 440×280 promo
-   tile).
+   store dashboards first; the upload APIs can't change listings. The text to
+   paste is in `extension/store/listing.md`, next to the images (1280×800
+   screenshots, 440×280 promo tile).
 2. Bump `version` in `extension/package.json`. Both stores reject a version
    they've already seen.
 3. Commit, then tag and push: `git tag extension-v<version> && git push origin extension-v<version>`.
