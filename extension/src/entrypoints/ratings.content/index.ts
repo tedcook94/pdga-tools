@@ -27,6 +27,7 @@ export default defineContentScript({
 					target: container,
 					props: {
 						page,
+						player,
 						initialEvents: saved.events,
 						initialCollapsed,
 						initialLocalOnly: saved.localOnly,

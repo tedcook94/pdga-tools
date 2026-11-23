@@ -47,7 +47,8 @@ input[type='number']::-webkit-outer-spin-button {
 }
 
 button.add,
-.actions button {
+.actions button,
+.import button {
 	height: 30px;
 	padding: 0 12px;
 	border: 1px solid var(--border);
@@ -61,7 +62,13 @@ button.add,
 }
 
 button.add:hover,
-.actions button:hover {
+.actions button:hover,
+.import button:hover:not(:disabled) {
 	border-color: var(--accent);
 	background: var(--accent-soft);
+}
+
+.import button:disabled {
+	color: var(--muted);
+	cursor: default;
 }

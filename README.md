@@ -400,10 +400,16 @@ Requires Node 22+ and pnpm.
 they've played since the last update, and shows the projected rating for each
 upcoming update with the rounds added, dropped, counted twice and aged out.
 
-It reads only the page that's open: PDGA's terms ban scrapers, and the API
-has no round history. Added events are saved in `storage.sync`, one item per
-event, falling back to `storage.local` when sync fails. The only permission
-is `storage`.
+It reads the page that's open, plus one event page each time the player
+imports or refreshes an event: PDGA's terms ban scrapers, so nothing is
+fetched in the background, and the API has no round history. An import takes
+an event ID, event page link or PDGA Live link, always requests
+`www.pdga.com/tour/event/<id>` and reads only that player's results row.
+Importing an event again replaces the earlier import.
+
+Added events are saved in `storage.sync`, one item per event, falling back to
+`storage.local` when sync fails. Open ratings pages reload when another tab
+or device changes them. The only permission is `storage`.
 
 ### Rating rules
 

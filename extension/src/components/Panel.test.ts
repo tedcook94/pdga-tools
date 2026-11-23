@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AddedEvent } from '@/lib/events';
@@ -34,12 +36,16 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-function render(initialEvents: AddedEvent[], initialCollapsed = false) {
+function render(
+	initialEvents: AddedEvent[],
+	initialCollapsed = false,
+	fetcher?: typeof fetch
+) {
 	const onchange = vi.fn<(events: AddedEvent[]) => void>();
 	const oncollapse = vi.fn<(collapsed: boolean) => void>();
 	panel = mount(Panel, {
 		target: document.body,
-		props: { page, initialEvents, initialCollapsed, onchange, oncollapse }
+		props: { page, player: '1', initialEvents, initialCollapsed, onchange, oncollapse, fetcher }
 	});
 	flushSync();
 	return { onchange, oncollapse, lastSaved: () => onchange.mock.lastCall?.[0] };
@@ -75,7 +81,7 @@ function click(label: string) {
 describe('Panel', () => {
 	it('explains what to do with no events', () => {
 		const { onchange } = render([]);
-		expect(text()).toContain('Add a tournament or league');
+		expect(text()).toContain('Import or add the tournaments and leagues');
 		expect(onchange).not.toHaveBeenCalled();
 	});
 
@@ -158,7 +164,10 @@ describe('Panel', () => {
 
 	it('says when sync failed and rounds stay on this device', async () => {
 		const onchange = vi.fn(async () => ({ localOnly: true }));
-		panel = mount(Panel, { target: document.body, props: { page, initialEvents: [], onchange } });
+		panel = mount(Panel, {
+			target: document.body,
+			props: { page, player: '1', initialEvents: [], onchange }
+		});
 		flushSync();
 		expect(text()).not.toContain('Saved on this device only');
 		click('+ League');
@@ -181,6 +190,7 @@ describe('Panel', () => {
 			target: document.body,
 			props: {
 				page,
+				player: '1',
 				initialEvents: [],
 				onchange,
 				watch: (callback) => {
@@ -203,5 +213,108 @@ describe('Panel', () => {
 		unmount(panel);
 		panel = undefined;
 		expect(stop).toHaveBeenCalled();
+	});
+
+	describe('importing', () => {
+		// The trimmed fixtures list the player as PDGA #1.
+		const fixture = (name: string) => readFileSync(join(process.cwd(), 'fixtures', name), 'utf8');
+
+		function fakeFetch(...responses: (string | Response | Error)[]) {
+			return vi.fn<typeof fetch>(async () => {
+				const next = responses.shift() ?? new Error('no more responses');
+				if (next instanceof Error) throw next;
+				return typeof next === 'string' ? new Response(next) : next;
+			});
+		}
+
+		async function submit(value: string) {
+			const input = document.querySelector<HTMLInputElement>('#import-event')!;
+			input.value = value;
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+			flushSync();
+			document.querySelector('form.import')!.dispatchEvent(
+				new Event('submit', { bubbles: true, cancelable: true })
+			);
+			flushSync();
+			const button = document.querySelector('.import button')!;
+			await vi.waitFor(() => expect(button.textContent?.trim()).toBe('Import'));
+		}
+
+		const message = () => document.querySelector('.import-message')?.textContent?.trim();
+
+		it('imports an event from a PDGA Live link and saves it', async () => {
+			const fetcher = fakeFetch(fixture('event-league-active.html'));
+			const { lastSaved } = render([], false, fetcher);
+			await submit('https://www.pdga.com/live/event/108060/MA1/scores?round=7');
+
+			expect(fetcher).toHaveBeenCalledOnce();
+			expect(fetcher.mock.calls[0]![0]).toBe('https://www.pdga.com/tour/event/108060');
+			expect(message()).toBe('Imported Event 1: 6 rated rounds.');
+			expect(field('League name').value).toBe('Event 1');
+			expect(lastSaved()).toMatchObject([
+				{ id: '1-108060', pdgaEventId: 108060, endDate: '2026-12-06' }
+			]);
+			expect(lastSaved()![0]!.rounds.map((round) => round.number)).toEqual([1, 2, 4, 5, 6, 7]);
+			expect(document.querySelector<HTMLInputElement>('#import-event')!.value).toBe('');
+		});
+
+		it('replaces an earlier import instead of adding a copy', async () => {
+			const fetcher = fakeFetch(
+				fixture('event-league-active.html'),
+				fixture('event-league-active.html').replace('>854<', '>860<')
+			);
+			const { lastSaved } = render([], false, fetcher);
+			await submit('108060');
+			await submit('108060');
+			expect(message()).toBe('Updated Event 1: 6 rated rounds.');
+			expect(lastSaved()).toHaveLength(1);
+			expect(lastSaved()![0]!.rounds.at(-1)!.rating).toBe(860);
+		});
+
+		it('refreshes an imported event from its own button', async () => {
+			const fetcher = fakeFetch(
+				fixture('event-tournament.html'),
+				fixture('event-tournament.html').replace('>847<', '>850<')
+			);
+			const { lastSaved } = render([], false, fetcher);
+			await submit('89239');
+			click('Refresh');
+			await vi.waitFor(() => expect(lastSaved()![0]!.rounds[2]!.rating).toBe(850));
+			expect(fetcher.mock.calls[1]![0]).toBe('https://www.pdga.com/tour/event/89239');
+		});
+
+		it('rejects input that has no event ID without fetching', async () => {
+			const fetcher = fakeFetch();
+			render([], false, fetcher);
+			await submit('https://example.com/tour/event/1');
+			expect(message()).toBe('Enter an event ID, event page link or PDGA Live link.');
+			expect(fetcher).not.toHaveBeenCalled();
+		});
+
+		it("doesn't fetch events already in the current rating", async () => {
+			const fetcher = fakeFetch();
+			render([], false, fetcher);
+			await submit(String(page.rounds[0]!.eventId));
+			expect(message()).toBe('This event is already in your current rating.');
+			expect(fetcher).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			[new Response('', { status: 403 }), "pdga.com didn't return the event page (error 403)"],
+			[new Error('offline'), "Couldn't reach pdga.com"],
+			['<h1>Just a moment...</h1>', "doesn't look like a PDGA event page"],
+			[
+				fixture('event-tournament.html').replace('pdga-number">1<', 'pdga-number">2<'),
+				"PDGA #1 isn't in this event's results."
+			],
+			[fixture('event-doubles.html'), "None of PDGA #1's rounds in this event are rated yet."]
+		])('explains failures and keeps the input (%#)', async (response, expected) => {
+			const { onchange } = render([], false, fakeFetch(response));
+			await submit('1234');
+			expect(message()).toContain(expected);
+			expect(document.querySelector('.import-message.error')).not.toBeNull();
+			expect(document.querySelector<HTMLInputElement>('#import-event')!.value).toBe('1234');
+			expect(onchange).not.toHaveBeenCalled();
+		});
 	});
 });

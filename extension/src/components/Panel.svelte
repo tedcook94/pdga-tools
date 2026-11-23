@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { formatChange, formatDate, newEvent } from '@/lib/editing';
+	import { parseEventId } from '@/lib/event-page';
+	import { fetchEvent } from '@/lib/fetch-event';
+	import { importEvent } from '@/lib/import';
 	import type { AddedEvent, EventKind } from '@/lib/events';
 	import { project } from '@/lib/projection';
 	import type { RatingsPage } from '@/lib/ratings-page';
@@ -9,6 +12,8 @@
 
 	interface Props {
 		page: RatingsPage;
+		/** PDGA number of the player whose ratings page this is. */
+		player: string;
 		/** Saved events to start from. */
 		initialEvents: AddedEvent[];
 		initialCollapsed?: boolean;
@@ -18,16 +23,20 @@
 		oncollapse?: (collapsed: boolean) => void;
 		/** Subscribes to changes made in other tabs or devices; returns an unsubscribe. */
 		watch?: (onchange: (result: LoadResult) => void) => () => void;
+		/** Loads event pages for imports; replaced in tests. */
+		fetcher?: typeof fetch;
 	}
 
 	let {
 		page,
+		player,
 		initialEvents,
 		initialCollapsed = false,
 		initialLocalOnly = false,
 		onchange,
 		oncollapse,
-		watch
+		watch,
+		fetcher
 	}: Props = $props();
 
 	// The panel owns its state from here on; later prop changes are ignored.
@@ -82,6 +91,56 @@
 		events = events.filter((event) => event.id !== id);
 	}
 
+	let importText = $state('');
+	let importing = $state(false);
+	let importMessage = $state<{ text: string; error: boolean } | null>(null);
+
+	/** Imports or refreshes one event. Returns an error message, or null when it worked. */
+	async function runImport(pdgaEventId: number): Promise<string | null> {
+		if (page.rounds.some((round) => round.eventId === pdgaEventId)) {
+			return 'This event is already in your current rating.';
+		}
+		const result = await fetchEvent(pdgaEventId, player, fetcher);
+		if (!result.ok) return result.error;
+		events = importEvent(
+			$state.snapshot(events),
+			player,
+			pdgaEventId,
+			result.page,
+			result.rounds
+		);
+		return null;
+	}
+
+	async function submitImport(e: SubmitEvent) {
+		e.preventDefault();
+		const pdgaEventId = parseEventId(importText);
+		if (pdgaEventId === null) {
+			importMessage = {
+				text: 'Enter an event ID, event page link or PDGA Live link.',
+				error: true
+			};
+			return;
+		}
+		const existed = events.some((event) => event.pdgaEventId === pdgaEventId);
+		importing = true;
+		importMessage = null;
+		const error = await runImport(pdgaEventId);
+		importing = false;
+		if (error) {
+			importMessage = { text: error, error: true };
+			return;
+		}
+		importText = '';
+		const event = events.find((candidate) => candidate.pdgaEventId === pdgaEventId)!;
+		const count = event.rounds.length;
+		const rounds = count === 1 ? '1 rated round' : `${count} rated rounds`;
+		importMessage = {
+			text: `${existed ? 'Updated' : 'Imported'} ${event.name}: ${rounds}.`,
+			error: false
+		};
+	}
+
 	function clearCounted() {
 		events = events.filter((event) => !counted.has(event.id));
 	}
@@ -117,19 +176,40 @@
 				<Timeline updates={projection.updates} />
 			{:else if events.length === 0}
 				<p class="empty">
-					Add a tournament or league you've played since your last update to see your next
-					rating.
+					Import or add the tournaments and leagues you've played since your last update to
+					see your next rating.
 				</p>
 			{:else}
 				<p class="empty">Finish the rounds below to see your next rating.</p>
 			{/if}
 
+			<form class="import" onsubmit={submitImport}>
+				<label for="import-event">Import from event</label>
+				<div class="import-row">
+					<input
+						id="import-event"
+						placeholder="Event ID, event page link or PDGA Live link"
+						autocomplete="off"
+						bind:value={importText}
+					/>
+					<button type="submit" disabled={importing}>
+						{importing ? 'Importing…' : 'Import'}
+					</button>
+				</div>
+				{#if importMessage}
+					<p class="import-message" class:error={importMessage.error} role="status">
+						{importMessage.text}
+					</p>
+				{/if}
+			</form>
 			{#each events as event, index (event.id)}
+				{@const pdgaEventId = event.pdgaEventId}
 				<EventEditor
 					bind:event={events[index]!}
 					problems={problems.get(event.id) ?? []}
 					counted={counted.has(event.id)}
 					onremove={() => remove(event.id)}
+					onrefresh={pdgaEventId === undefined ? undefined : () => runImport(pdgaEventId)}
 				/>
 			{/each}
 
@@ -233,6 +313,39 @@
 	.actions {
 		display: flex;
 		gap: 8px;
+	}
+
+	.import {
+		display: grid;
+		gap: 6px;
+	}
+
+	.import label {
+		font-size: 12px;
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--muted);
+	}
+
+	.import-row {
+		display: flex;
+		gap: 8px;
+		max-width: 36rem;
+	}
+
+	.import-row input {
+		flex: 1;
+	}
+
+	.import-message {
+		margin: 0;
+		font-size: 13px;
+		color: var(--up);
+	}
+
+	.import-message.error {
+		color: var(--danger);
 	}
 
 	.actions .clear {

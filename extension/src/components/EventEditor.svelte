@@ -8,9 +8,22 @@
 		/** Already in the published rating, so it no longer changes anything. */
 		counted: boolean;
 		onremove: () => void;
+		/** Reloads an imported event from pdga.com; resolves to an error message or null. */
+		onrefresh?: () => Promise<string | null>;
 	}
 
-	let { event = $bindable(), problems, counted, onremove }: Props = $props();
+	let { event = $bindable(), problems, counted, onremove, onrefresh }: Props = $props();
+
+	let refreshing = $state(false);
+	let refreshError = $state<string | null>(null);
+
+	async function refresh() {
+		if (!onrefresh) return;
+		refreshing = true;
+		refreshError = null;
+		refreshError = await onrefresh();
+		refreshing = false;
+	}
 
 	const kindLabel = $derived(event.kind === 'league' ? 'League' : 'Tournament');
 
@@ -41,8 +54,21 @@
 				/>
 			</label>
 		{/if}
+		{#if onrefresh}
+			<button
+				class="refresh"
+				type="button"
+				title="Reload this event's rounds from pdga.com"
+				disabled={refreshing}
+				onclick={refresh}>{refreshing ? 'Refreshing…' : 'Refresh'}</button
+			>
+		{/if}
 		<button class="remove" type="button" onclick={onremove}>Remove</button>
 	</header>
+
+	{#if refreshError}
+		<p class="note error" role="status">{refreshError}</p>
+	{/if}
 
 	{#if counted}
 		<p class="note">Already counted in your current rating.</p>
@@ -154,6 +180,7 @@
 		color: var(--muted);
 	}
 
+	.refresh,
 	.remove {
 		padding: 0;
 		border: none;
@@ -164,9 +191,22 @@
 		cursor: pointer;
 	}
 
+	.refresh:hover:not(:disabled) {
+		color: var(--accent);
+		text-decoration: underline;
+	}
+
+	.refresh:disabled {
+		cursor: default;
+	}
+
 	.remove:hover {
 		color: var(--danger);
 		text-decoration: underline;
+	}
+
+	.note.error {
+		color: var(--danger);
 	}
 
 	.note {

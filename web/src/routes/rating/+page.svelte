@@ -58,8 +58,12 @@
 		<h2>What it does</h2>
 		<ul>
 			<li>
-				<strong>Add tournaments and leagues once,</strong> then add, renumber or delete rounds
-				under them as you play.
+				<strong>Import an event from its ID or link,</strong> including PDGA Live links, and
+				refresh it as more league weeks are rated.
+			</li>
+			<li>
+				<strong>Or add tournaments and leagues by hand,</strong> then add, renumber or delete
+				rounds under them as you play.
 			</li>
 			<li>
 				<strong>See every upcoming update:</strong> the projected rating and change, which
@@ -82,7 +86,10 @@
 			<li>
 				On pdga.com, open your player page and choose <strong>Ratings Detail</strong>.
 			</li>
-			<li>Add the events you've played since the last update, with each round's rating.</li>
+			<li>
+				Import the events you've played since the last update, or add them with each round's
+				rating.
+			</li>
 		</ol>
 		<p class="note">
 			Projections are estimates based on PDGA's published method and can be off by a point or
